@@ -1,0 +1,2568 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>累計得点表マネージャー | Scoreboard & A4 Worksheet Studio</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Noto Sans JP & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
+
+  <!-- html2canvas CDN for crisp 2x PNG export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans JP"', '"Inter"', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      font-family: 'Noto Sans JP', 'Inter', sans-serif;
+      background-color: #0b1120;
+      color: #e2e8f0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Slim scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+
+    /* Hide number input arrows */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    /* Exact 800px WYSIWYG Scoreboard Sheet */
+    .scoreboard-sheet {
+      width: 800px;
+      background-color: #141e30;
+      color: #ffffff;
+      font-family: 'Noto Sans JP', 'Inter', sans-serif;
+      box-sizing: border-box;
+    }
+
+    /* Subtle hover/focus highlight for directly editable dark-bg fields */
+    .wysiwyg-input {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    .wysiwyg-input:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+      border-color: rgba(230, 180, 34, 0.45);
+    }
+    .wysiwyg-input:focus {
+      outline: none;
+      background-color: rgba(15, 23, 42, 0.65);
+      border-color: #e6b422;
+    }
+
+    /* Completely borderless inline input for member names & cumulative points */
+    .borderless-score-input {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    .borderless-score-input:hover {
+      background-color: rgba(15, 23, 42, 0.05);
+    }
+    .borderless-score-input:focus {
+      outline: none;
+      background-color: #fefce8;
+      border-color: #e6b422;
+      box-shadow: 0 0 0 2px rgba(230, 180, 34, 0.22);
+    }
+
+    /* Handwritten empty box for worksheet mode */
+    .handwrite-box {
+      border: 1.5px solid #475569;
+      background-color: #ffffff;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    /* Ink-saver theme for Worksheet Mode */
+    .ink-save-sheet {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+
+    /* Responsive scaling wrapper */
+    #sheet-scale-wrapper {
+      transform-origin: top center;
+      transition: transform 0.15s ease-out;
+    }
+
+    /* ==================== A4 PORTRAIT PRINT STYLES ==================== */
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      html, body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+
+      /* Hide all app UI, toolbars, modals, and edit-only controls */
+      header,
+      .no-print,
+      .export-hide,
+      #modal-setup,
+      #modal-auth,
+      #modal-confirm,
+      #toast {
+        display: none !important;
+      }
+
+      main#workspace-scroll {
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+        display: block !important;
+      }
+
+      #sheet-outer-container {
+        width: 100% !important;
+        height: auto !important;
+        display: block !important;
+      }
+
+      #sheet-scale-wrapper {
+        transform: none !important;
+        width: 100% !important;
+      }
+
+      #scoreboard-sheet {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 !important;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ==================== COMPACT TOP TOOLBAR ==================== -->
+  <header class="no-print sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-2.5 sm:px-4 py-2">
+    <div class="max-w-[1140px] mx-auto flex flex-wrap items-center justify-between gap-2">
+
+      <!-- Left: Brand + Board Selector -->
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow shrink-0">
+          <i class="fa-solid fa-trophy text-sm"></i>
+        </div>
+        <div class="flex items-center gap-1.5 min-w-0">
+          <select id="board-selector" class="bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white border border-slate-700 rounded-lg px-2.5 py-1.5 max-w-[140px] sm:max-w-[210px] focus:outline-none focus:ring-1 focus:ring-amber-400 truncate">
+            <option value="">読み込み中...</option>
+          </select>
+          <button id="btn-new-board" title="新しい月の得点表を作成" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-bold transition shrink-0">
+            <i class="fa-solid fa-plus"></i><span class="hidden lg:inline ml-1">新規</span>
+          </button>
+          <button id="btn-edit-settings" title="月・チーム・目標設定" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition shrink-0">
+            <i class="fa-solid fa-sliders"></i><span class="hidden lg:inline ml-1">設定</span>
+          </button>
+          <button id="btn-delete-board" title="この得点表を削除" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 border border-slate-700 text-xs transition shrink-0">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Center: Prominent Mode Toggle (配布画像モード vs 記入用紙モード) -->
+      <div class="inline-flex bg-slate-950 p-1 rounded-xl border border-slate-700/80 shadow-inner">
+        <button id="btn-mode-distribution" type="button"
+          class="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-image"></i>
+          <span>配布画像<span class="hidden sm:inline">モード</span></span>
+        </button>
+        <button id="btn-mode-worksheet" type="button"
+          class="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-print"></i>
+          <span>記入用紙<span class="hidden sm:inline">モード (印刷)</span></span>
+        </button>
+      </div>
+
+      <!-- Right: Status, Mobile Zoom, Export/Print, Account -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Save Status Indicator -->
+        <button id="btn-manual-save" title="クリックで今すぐ保存" class="px-2 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 flex items-center gap-1.5 transition">
+          <span id="save-status-icon"><i class="fa-solid fa-cloud text-emerald-400"></i></span>
+          <span id="save-status-text" class="hidden xl:inline">同期済</span>
+        </button>
+
+        <!-- Mobile View Mode Toggle: Fit vs 100% Scroll -->
+        <button id="btn-toggle-zoom" class="md:hidden px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-sky-300 flex items-center gap-1 transition" title="画面幅フィット / 等倍スクロール切替">
+          <i class="fa-solid fa-magnifying-glass-plus"></i>
+          <span>拡大</span>
+        </button>
+
+        <!-- Primary Action Button: Print A4 (in Worksheet Mode) -->
+        <button id="btn-print-worksheet" class="hidden px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-print"></i>
+          <span>記入用紙を印刷 (A4)</span>
+        </button>
+
+        <!-- PNG Export Button -->
+        <button id="btn-export-png" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-download"></i>
+          <span id="btn-export-png-label">PNG書き出し</span>
+        </button>
+
+        <!-- Account / Privacy Button -->
+        <button id="btn-account" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 flex items-center gap-1.5 transition" title="アカウント・非公開データ管理">
+          <i class="fa-solid fa-user-shield text-emerald-400"></i>
+          <span id="account-label" class="hidden xl:inline max-w-[100px] truncate">アカウント</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Contextual Sub-bar for Distribution Mode -->
+    <div id="subbar-distribution" class="max-w-[800px] mx-auto mt-2 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+      <div class="flex items-center gap-1.5">
+        <span class="text-slate-400 font-semibold hidden sm:inline"><i class="fa-regular fa-image mr-1 text-amber-400"></i>画像枠:</span>
+        <div class="inline-flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+          <button data-banner-mode="guide" class="banner-mode-btn px-2.5 py-1 rounded-md font-bold transition">画像なし(AIガイド)</button>
+          <button data-banner-mode="blank" class="banner-mode-btn px-2.5 py-1 rounded-md font-bold transition">画像なし(空欄)</button>
+          <button data-banner-mode="image" class="banner-mode-btn px-2.5 py-1 rounded-md font-bold transition">画像あり</button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 text-slate-400">
+        <span class="hidden sm:inline"><i class="fa-solid fa-pen-nib text-amber-400 mr-1"></i>表内の文字・数字を直接クリックして編集（書き出し時は編集ボタン自動非表示）</span>
+        <span class="sm:hidden text-[10px] text-amber-300/90">※ 表内タップで直接編集</span>
+      </div>
+    </div>
+
+    <!-- Contextual Sub-bar for Worksheet Print Mode -->
+    <div id="subbar-worksheet" class="hidden max-w-[800px] mx-auto mt-2 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex flex-wrap items-center gap-4">
+        <label class="inline-flex items-center gap-2 cursor-pointer text-slate-200 font-semibold select-none">
+          <input type="checkbox" id="chk-print-show-banner" class="w-4 h-4 accent-amber-400 rounded cursor-pointer" />
+          <span><i class="fa-regular fa-image text-amber-400 mr-1"></i>画像枠を表示</span>
+        </label>
+
+        <label class="inline-flex items-center gap-2 cursor-pointer text-slate-200 font-semibold select-none">
+          <input type="checkbox" id="chk-print-ink-save" class="w-4 h-4 accent-emerald-400 rounded cursor-pointer" />
+          <span><i class="fa-solid fa-droplet-slash text-emerald-400 mr-1"></i>インク節約（白ベース印刷）</span>
+        </label>
+      </div>
+
+      <div class="text-[11px] text-emerald-300/90 font-medium">
+        <i class="fa-solid fa-circle-info mr-1"></i>A4縦1枚に最適化・手書き記入枠付き
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CENTER WORKSPACE ==================== -->
+  <main id="workspace-scroll" class="flex-1 w-full overflow-x-auto overflow-y-auto py-4 sm:py-6 px-2 sm:px-4 flex flex-col items-center">
+    <div id="sheet-outer-container" class="w-full flex justify-center">
+      <div id="sheet-scale-wrapper">
+
+        <!-- ==================== EXPORTABLE & PRINTABLE SCOREBOARD SHEET (800px) ==================== -->
+        <div id="scoreboard-sheet" class="scoreboard-sheet shadow-2xl border border-slate-700/60 overflow-hidden relative">
+
+          <!-- 1. HEADER -->
+          <div id="sheet-header-area" class="px-8 pt-6 pb-4 bg-[#141e30] transition-colors">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1 min-w-0">
+                <!-- Top Kicker -->
+                <input type="text" id="ed-kicker" placeholder="大会名・店舗名（例：入間店 冬のインナーコンテスト）"
+                  class="wysiwyg-input sheet-kicker-text w-full text-[15px] font-medium text-slate-200 tracking-wide px-1 -ml-1 mb-0.5" />
+
+                <!-- Main Title (Month + Title) -->
+                <div class="flex items-baseline gap-2">
+                  <input type="text" id="ed-month-display" placeholder="11月"
+                    class="wysiwyg-input sheet-title-text w-[112px] text-[36px] font-black text-white leading-tight tracking-tight px-1 -ml-1 shrink-0" />
+                  <input type="text" id="ed-main-title" placeholder="BUCC 累計得点表"
+                    class="wysiwyg-input sheet-title-text flex-1 min-w-0 text-[36px] font-black text-white leading-tight tracking-tight px-1" />
+                </div>
+              </div>
+
+              <!-- Worksheet Mode ONLY: Handwritten Date Box -->
+              <div id="worksheet-header-datebox" class="hidden shrink-0 text-right pt-1">
+                <div class="inline-block bg-white text-slate-900 border-2 border-slate-500 rounded-md px-3.5 py-2 shadow-sm">
+                  <div class="text-[10px] font-bold text-slate-500 tracking-wider mb-0.5 text-left">手書き記入用シート</div>
+                  <div class="text-[15px] font-black tracking-widest text-slate-900 whitespace-nowrap">
+                    記入日：<span class="inline-block w-9 border-b border-slate-500"></span>月<span class="inline-block w-9 border-b border-slate-500"></span>日（<span class="inline-block w-5"></span>）
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Row: Subtitle + Aggregation Date -->
+            <div class="flex items-end justify-between gap-4 mt-1.5">
+              <input type="text" id="ed-subtitle" placeholder="補足タイトル（例：ボディアンダーコーティング）"
+                class="wysiwyg-input sheet-subtitle-text flex-1 text-[15px] font-semibold text-[#e6b422] tracking-wide px-1 -ml-1" />
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span id="worksheet-date-prefix" class="hidden text-[12px] font-bold opacity-80">集計基準：</span>
+                <input type="text" id="ed-date-text" placeholder="2026年11月21日 集計"
+                  class="wysiwyg-input sheet-date-text w-[175px] text-right text-[14px] font-medium text-slate-200 tracking-wide px-1" />
+                <span id="worksheet-date-suffix" class="hidden text-[12px] font-bold opacity-80">時点</span>
+                <button type="button" id="btn-set-today" title="今日の日付に更新"
+                  class="export-hide px-2 py-0.5 rounded bg-slate-700/90 hover:bg-amber-500 hover:text-slate-950 text-[11px] font-bold text-amber-300 border border-slate-600 transition shrink-0">
+                  <i class="fa-regular fa-calendar-check mr-0.5"></i>今日
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- GOLD DIVIDER LINE -->
+          <div id="sheet-divider-line" class="h-[6px] w-full bg-[#e6b422]"></div>
+
+          <!-- 2. BANNER IMAGE SLOT (16:9 FIXED - Hidden by default in Worksheet Mode) -->
+          <div id="sheet-banner-wrapper" class="px-8 pt-5 pb-4 bg-[#141e30] transition-colors">
+            <div id="banner-slot-box" class="relative w-full aspect-video rounded-sm overflow-hidden shadow-md bg-[#0f172a]">
+
+              <!-- MODE A1: AI SPEC GUIDE -->
+              <div id="banner-view-guide" class="w-full h-full relative flex items-center justify-center">
+                <div id="banner-color-zones" class="absolute inset-0 flex"></div>
+
+                <div class="relative z-10 bg-slate-950/90 border border-amber-400/60 rounded-xl px-6 py-4 max-w-[92%] text-center shadow-2xl">
+                  <div class="inline-flex items-center gap-1.5 text-amber-400 text-[12px] font-bold tracking-wider uppercase mb-1">
+                    <i class="fa-solid fa-crop-simple"></i> 外部AI画像生成用 挿入枠ガイド
+                  </div>
+                  <div class="text-[20px] font-black text-white tracking-tight mb-2">
+                    推奨サイズ: 1200 × 675 px（アスペクト比 16:9）
+                  </div>
+                  <div id="banner-spec-teams" class="text-[13px] font-bold text-slate-100 bg-slate-900/90 border border-slate-700 rounded-lg px-4 py-2 mb-2 leading-relaxed">
+                    <!-- Dynamic team colors -->
+                  </div>
+                  <div class="text-[11px] text-slate-300 leading-relaxed">
+                    ※ 必須指定：背景を上記チームカラー配置に合わせ、上下左右に少し余白を確保。<span class="text-amber-300 font-bold">画像内に文字・数字・ロゴは入れないこと。</span>
+                  </div>
+                  <div class="export-hide mt-3 flex justify-center">
+                    <button type="button" id="btn-copy-ai-prompt"
+                      class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow flex items-center gap-1.5 transition">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                      <span>AI画像生成プロンプトをコピー</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MODE A2: SIMPLE BLANK -->
+              <div id="banner-view-blank" class="hidden w-full h-full bg-white/95 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-300">
+                <i class="fa-regular fa-image text-4xl mb-2 opacity-40"></i>
+                <div class="text-[15px] font-bold opacity-60">画像挿入エリア（16:9 / 1200×675px）</div>
+                <div class="export-hide text-[11px] text-slate-500 mt-1">※ 書き出し時はそのままシンプルな空欄枠として出力されます</div>
+              </div>
+
+              <!-- MODE B: UPLOADED IMAGE ON CANVAS -->
+              <div id="banner-view-image" class="hidden w-full h-full relative bg-[#0c1322]">
+                <canvas id="banner-canvas" width="1200" height="675" class="w-full h-full block"></canvas>
+
+                <!-- Empty Upload Dropzone Overlay -->
+                <div id="banner-upload-overlay" class="export-hide absolute inset-0 flex flex-col items-center justify-center bg-slate-950/75 cursor-pointer hover:bg-slate-900/75 transition border-2 border-dashed border-amber-400/60">
+                  <i class="fa-solid fa-cloud-arrow-up text-4xl text-amber-400 mb-2"></i>
+                  <div class="text-sm font-bold text-white">クリック または ドラッグ＆ドロップで画像を挿入</div>
+                  <div class="text-xs text-slate-300 mt-1">推奨: 16:9 (1200×675px) / PNG・JPG・WebP</div>
+                </div>
+              </div>
+
+              <input type="file" id="input-banner-file" accept="image/*" class="hidden" />
+            </div>
+
+            <!-- Floating Image Adjustment Toolbar (Hidden on PNG export & Print) -->
+            <div id="banner-image-toolbar" class="export-hide hidden mt-2 bg-slate-900/95 border border-slate-700 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div class="flex items-center gap-2">
+                <button type="button" id="btn-trigger-upload" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition">
+                  <i class="fa-solid fa-upload"></i> 画像を選択/変更
+                </button>
+                <button type="button" id="btn-clear-image" class="hidden px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/70 text-slate-300 hover:text-rose-200 border border-slate-700 text-xs transition">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+
+              <div id="banner-sliders-wrap" class="hidden flex-1 flex flex-wrap items-center justify-end gap-3">
+                <label class="flex items-center gap-1.5 text-[11px] text-slate-300">
+                  <span>拡大</span>
+                  <input type="range" id="slider-zoom" min="100" max="250" value="100" class="w-20 accent-amber-400" />
+                  <span id="val-zoom" class="w-9 text-right font-mono text-amber-300">100%</span>
+                </label>
+                <label class="flex items-center gap-1.5 text-[11px] text-slate-300">
+                  <span>左右</span>
+                  <input type="range" id="slider-x" min="-100" max="100" value="0" class="w-16 accent-amber-400" />
+                </label>
+                <label class="flex items-center gap-1.5 text-[11px] text-slate-300">
+                  <span>上下</span>
+                  <input type="range" id="slider-y" min="-100" max="100" value="0" class="w-16 accent-amber-400" />
+                </label>
+                <button type="button" id="btn-reset-img" class="text-[11px] text-sky-400 hover:text-sky-300 underline">リセット</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. TEAM SCORE TABLES GRID (2〜4 Teams) -->
+          <div id="sheet-teams-wrapper" class="px-8 pb-5 pt-1 bg-[#141e30] transition-colors">
+            <div id="teams-grid" class="grid grid-cols-2 gap-4 items-stretch">
+              <!-- Dynamically rendered team cards (Distribution Mode or Worksheet Mode) -->
+            </div>
+          </div>
+
+          <!-- 4. FOOTER SUMMARY AREA -->
+          <div id="sheet-footer-wrapper" class="px-8 pb-7 bg-[#141e30] transition-colors">
+            <!-- Summary Panel -->
+            <div id="sheet-footer-panel" class="bg-[#0d1524] border border-slate-700/50 rounded-sm px-5 py-4 space-y-3 transition-colors">
+
+              <!-- Overall Goals Progress Bars (Point &/or Amount) -->
+              <div id="footer-overall-goals" class="hidden space-y-2.5 pb-3 border-b border-slate-800">
+                <!-- Overall Points Goal Bar -->
+                <div id="overall-goal-points-wrap" class="hidden">
+                  <div class="flex items-center justify-between text-[13px] mb-1">
+                    <span class="footer-goal-label text-slate-200 font-bold">
+                      <i class="fa-solid fa-bullseye text-[#e6b422] mr-1"></i>全体ポイント目標：<span id="og-pts-target" class="footer-strong-text text-white">0</span> pt
+                    </span>
+                    <span id="og-pts-status" class="font-bold text-[#e6b422]">達成率 0%</span>
+                  </div>
+                  <div class="w-full h-3 bg-slate-800/80 rounded-full overflow-hidden">
+                    <div id="og-pts-bar" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 rounded-full transition-all duration-300" style="width: 0%"></div>
+                  </div>
+                </div>
+
+                <!-- Overall Amount Goal Bar -->
+                <div id="overall-goal-amount-wrap" class="hidden">
+                  <div class="flex items-center justify-between text-[13px] mb-1">
+                    <span class="footer-goal-label text-slate-200 font-bold">
+                      <i class="fa-solid fa-yen-sign text-emerald-400 mr-1"></i>全体金額目標：<span id="og-amt-target" class="footer-strong-text text-white">0</span> 円
+                    </span>
+                    <span id="og-amt-status" class="font-bold text-emerald-400">達成率 0%</span>
+                  </div>
+                  <div class="w-full h-3 bg-slate-800/80 rounded-full overflow-hidden">
+                    <div id="og-amt-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded-full transition-all duration-300" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Totals Row: Clean Borderless Overall Points & Confirmed Amount -->
+              <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-baseline gap-2.5">
+                  <span class="footer-accent-label text-[17px] font-bold text-[#e6b422] tracking-wide">総合計</span>
+                  <span id="footer-overall-points" class="footer-strong-text text-[28px] font-black text-white tracking-tight leading-none tabular-nums">
+                    0
+                  </span>
+                  <span class="footer-unit-text text-[14px] font-semibold text-slate-200">ポイント</span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <div class="flex flex-col items-end">
+                    <span class="footer-accent-label text-[15px] font-bold text-[#e6b422] leading-tight">確認済み累計金額</span>
+                    <label id="amount-sum-toggle-wrap" class="export-hide hidden items-center gap-1 text-[10px] text-slate-400 cursor-pointer mt-0.5">
+                      <input type="checkbox" id="chk-auto-sum-amount" class="accent-emerald-400" />
+                      <span>チーム金額を自動合算</span>
+                    </label>
+                  </div>
+                  <input type="number" id="ed-overall-amount" placeholder="0"
+                    class="wysiwyg-input footer-amount-input w-[150px] text-right font-black text-[24px] text-white px-2 py-0.5 leading-tight tabular-nums" />
+                  <span class="footer-unit-text text-[14px] font-semibold text-slate-200">円</span>
+                </div>
+              </div>
+
+              <!-- Distribution Mode: Footer Notes / Memo -->
+              <div id="footer-notes-distribution" class="pt-1">
+                <textarea id="ed-footer-notes" rows="2" placeholder="備考・加算メモを直接入力できます（書き出し時に未入力なら非表示）"
+                  class="wysiwyg-input footer-notes-text w-full text-[12.5px] text-slate-200 leading-relaxed px-1.5 py-1 -ml-1.5 resize-none overflow-hidden"></textarea>
+              </div>
+
+              <!-- Worksheet Mode ONLY: Handwritten Daily Amount & Memo Box -->
+              <div id="footer-memo-worksheet" class="hidden pt-2">
+                <div class="bg-white border-2 border-slate-500 rounded-md p-3 text-slate-800">
+                  <div class="flex items-center justify-between border-b border-slate-300 pb-1.5 mb-2">
+                    <span class="text-[12px] font-black text-slate-700">
+                      <i class="fa-solid fa-pen-to-square mr-1 text-slate-500"></i>当日金額・備考メモ欄（手書き用）
+                    </span>
+                    <span class="text-[12px] font-bold text-slate-700">
+                      当日売上金額：<span class="inline-block w-32 border-b border-slate-500 mx-1"></span>円
+                    </span>
+                  </div>
+                  <div class="h-[68px] flex flex-col justify-between">
+                    <div class="border-b border-dashed border-slate-300 h-1/2"></div>
+                    <div class="border-b border-dashed border-slate-300 h-1/2"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Battle Status Summary Line -->
+            <div class="mt-3.5 px-1">
+              <div id="footer-battle-date" class="footer-sub-text text-[12px] text-slate-300 mb-0.5">
+                累計対戦状況（11月21日集計時点）
+              </div>
+              <div id="footer-battle-summary" class="footer-accent-label text-[16px] font-bold text-[#e6b422] leading-snug">
+                <!-- Dynamic comparison -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <!-- ==================== END SCOREBOARD SHEET ==================== -->
+
+      </div>
+    </div>
+    <div class="h-12 shrink-0 no-print"></div>
+  </main>
+
+  <!-- ==================== SETUP WIZARD & SETTINGS MODAL ==================== -->
+  <div id="modal-setup" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full shadow-2xl my-auto overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div>
+          <h3 id="modal-setup-title" class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+            <span>得点表の初期設定</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">対象月・チーム数・カラー・ポイント/金額の目標設定を行います</p>
+        </div>
+        <button id="btn-close-setup" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
+        <!-- 1. Month & Title -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">1. 対象月・基本情報</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">対象年月</label>
+              <input type="month" id="cfg-year-month" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs text-slate-300 mb-1">タイトル（月の後ろに表示）</label>
+              <input type="text" id="cfg-main-title" placeholder="BUCC 累計得点表" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">大会名・店舗名</label>
+              <input type="text" id="cfg-kicker" placeholder="入間店 冬のインナーコンテスト" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">補足タイトル</label>
+              <input type="text" id="cfg-subtitle" placeholder="ボディアンダーコーティング" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Target Goal Scope & Metrics (Point & Amount) -->
+        <div class="space-y-3 pt-3 border-t border-slate-800">
+          <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">2. 目標値の設定（ポイント・金額 両対応）</h4>
+
+          <div>
+            <label class="block text-xs text-slate-400 mb-1.5">目標の対象</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <label class="cursor-pointer">
+                <input type="radio" name="cfg-goal-scope" value="none" class="peer hidden" />
+                <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-400 peer-checked:text-amber-300 border border-slate-700 bg-slate-950 rounded-xl py-2 px-2 text-center text-xs font-semibold text-slate-300 transition">
+                  目標なし
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="cfg-goal-scope" value="overall" class="peer hidden" />
+                <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-400 peer-checked:text-amber-300 border border-slate-700 bg-slate-950 rounded-xl py-2 px-2 text-center text-xs font-semibold text-slate-300 transition">
+                  全体目標のみ
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="cfg-goal-scope" value="team" class="peer hidden" />
+                <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-400 peer-checked:text-amber-300 border border-slate-700 bg-slate-950 rounded-xl py-2 px-2 text-center text-xs font-semibold text-slate-300 transition">
+                  チーム目標のみ
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="cfg-goal-scope" value="both" class="peer hidden" />
+                <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-400 peer-checked:text-amber-300 border border-slate-700 bg-slate-950 rounded-xl py-2 px-2 text-center text-xs font-semibold text-slate-300 transition">
+                  全体＋チーム両方
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="cfg-goal-types-box" class="hidden space-y-3 bg-slate-950/70 border border-slate-800 rounded-xl p-3.5">
+            <div class="flex flex-wrap items-center gap-4">
+              <span class="text-xs font-bold text-slate-300">目標の種別（複数選択可）:</span>
+              <label class="flex items-center gap-2 text-xs text-white cursor-pointer">
+                <input type="checkbox" id="cfg-use-point-goal" class="w-4 h-4 accent-amber-400 rounded" />
+                <span>ポイント目標を使う</span>
+              </label>
+              <label class="flex items-center gap-2 text-xs text-white cursor-pointer">
+                <input type="checkbox" id="cfg-use-amount-goal" class="w-4 h-4 accent-emerald-400 rounded" />
+                <span>金額目標を使う</span>
+              </label>
+            </div>
+
+            <div id="cfg-overall-inputs" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+              <div id="cfg-og-pts-field">
+                <label class="block text-[11px] text-amber-300 mb-1">全体ポイント目標</label>
+                <div class="flex items-center gap-1.5">
+                  <input type="number" id="cfg-overall-pts" placeholder="例: 2000" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-400" />
+                  <span class="text-xs text-slate-400 shrink-0">pt</span>
+                </div>
+              </div>
+              <div id="cfg-og-amt-field">
+                <label class="block text-[11px] text-emerald-300 mb-1">全体金額目標</label>
+                <div class="flex items-center gap-1.5">
+                  <input type="number" id="cfg-overall-amt" placeholder="例: 1500000" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-400" />
+                  <span class="text-xs text-slate-400 shrink-0">円</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Team Count, Colors & Team Targets -->
+        <div class="space-y-3 pt-3 border-t border-slate-800">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">3. チーム数・チーム名・カラー</h4>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs text-slate-400">チーム数:</span>
+              <div class="flex bg-slate-950 p-0.5 rounded-lg border border-slate-700">
+                <button type="button" data-team-count="2" class="cfg-team-count-btn px-3 py-1 rounded-md text-xs font-bold transition">2</button>
+                <button type="button" data-team-count="3" class="cfg-team-count-btn px-3 py-1 rounded-md text-xs font-bold transition">3</button>
+                <button type="button" data-team-count="4" class="cfg-team-count-btn px-3 py-1 rounded-md text-xs font-bold transition">4</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="cfg-teams-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Dynamically generated team config cards -->
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3.5 border-t border-slate-800 bg-slate-900 flex items-center justify-end gap-2">
+        <button id="btn-cancel-setup" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+          キャンセル
+        </button>
+        <button id="btn-save-setup" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-lg transition">
+          この設定を反映して開始
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ACCOUNT / AUTH MODAL ==================== -->
+  <div id="modal-auth" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-user-shield text-emerald-400"></i>
+          <span>アカウント・非公開データ管理</span>
+        </h3>
+        <button id="btn-close-auth" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs space-y-1.5">
+          <div class="text-slate-400">現在のログイン状態</div>
+          <div id="auth-status-text" class="text-sm font-bold text-emerald-400">確認中...</div>
+          <div id="auth-uid-text" class="text-[11px] text-slate-500 break-all font-mono"></div>
+          <p class="text-[11px] text-slate-400 pt-1 leading-relaxed">
+            ログインしたアカウント専用の非公開領域に保存されるため、URLを知っている他人でもあなたの得点表データは閲覧できません。同じアカウントでログインすればPCとスマホで同期できます。
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button id="tab-auth-login" class="py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white">ログイン</button>
+            <button id="tab-auth-signup" class="py-1.5 rounded-lg text-xs font-bold text-slate-400">新規登録</button>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">メールアドレス</label>
+            <input type="email" id="auth-email" placeholder="store@example.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">パスワード（6文字以上）</label>
+            <input type="password" id="auth-password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400" />
+          </div>
+          <div id="auth-error-msg" class="hidden text-xs text-rose-400 bg-rose-950/50 border border-rose-800 rounded-lg p-2.5"></div>
+          <button id="btn-auth-submit" class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition">
+            メールアドレスでログイン
+          </button>
+
+          <div class="relative flex items-center py-0.5">
+            <div class="flex-grow border-t border-slate-800"></div>
+            <span class="shrink mx-3 text-[11px] text-slate-500">または</span>
+            <div class="flex-grow border-t border-slate-800"></div>
+          </div>
+
+          <button id="btn-google-signin" class="w-full py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 transition">
+            <i class="fa-brands fa-google text-rose-500"></i>
+            <span>Googleアカウントでログイン</span>
+          </button>
+        </div>
+
+        <div id="auth-signout-container" class="hidden pt-2 border-t border-slate-800">
+          <button id="btn-auth-signout" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-300 hover:text-rose-200 text-xs font-semibold transition">
+            ログアウトする
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CONFIRM MODAL ==================== -->
+  <div id="modal-confirm" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+      <h3 class="text-sm font-bold text-white flex items-center gap-2">
+        <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+        <span id="confirm-title">確認</span>
+      </h3>
+      <p id="confirm-message" class="text-xs text-slate-300 leading-relaxed"></p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="btn-confirm-cancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold">キャンセル</button>
+        <button id="btn-confirm-ok" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs text-white font-bold">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATION ==================== -->
+  <div id="toast" class="no-print fixed bottom-5 right-5 z-50 translate-y-20 opacity-0 pointer-events-none transition-all duration-300 bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold max-w-sm">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+    <span id="toast-text">保存しました</span>
+  </div>
+
+  <!-- ==================== APPLICATION SCRIPT ==================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+      getAuth,
+      signInAnonymously,
+      signInWithCustomToken,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      deleteDoc,
+      collection,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // =========================================================================
+    // 1. SELF-HOSTING FIREBASE CONFIG & DEFAULT PRESETS
+    // =========================================================================
+    /**
+     * GitHub Pages 等で独自公開してクラウド同期を使う場合は、
+     * 下記にご自身の Firebase プロジェクト設定オブジェクトを貼り付けてください。
+     * 未設定（null）の場合は自動的にローカルメモリモードで即座に動作します。
+     */
+    const CUSTOM_FIREBASE_CONFIG = null;
+    /* 例:
+    const CUSTOM_FIREBASE_CONFIG = {
+      apiKey: "AIzaSy...",
+      authDomain: "your-app.firebaseapp.com",
+      projectId: "your-app",
+      storageBucket: "your-app.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abcdef"
+    };
+    */
+
+    const COLOR_SWATCHES = ['#b8293d', '#1a738b', '#2a7b5b', '#6b469c', '#c26a1b', '#2563eb', '#db2777', '#334155'];
+
+    const DEFAULT_TEAM_PRESETS = [
+      { name: 'チーム太陽拳！', color: '#b8293d' },
+      { name: "チームLet's Go!!!!大倉", color: '#1a738b' },
+      { name: 'チームグリーン', color: '#2a7b5b' },
+      { name: 'チームパープル', color: '#6b469c' }
+    ];
+
+    function createDemoBoard(id = 'board_' + Date.now()) {
+      return {
+        id,
+        yearMonth: '2026-11',
+        monthLabel: '11月',
+        kicker: '入間店 冬のインナーコンテスト',
+        mainTitle: 'BUCC 累計得点表',
+        subtitle: 'ボディアンダーコーティング',
+        dateText: '2026年11月21日 集計',
+        goalScope: 'both',      // 'none' | 'overall' | 'team' | 'both'
+        usePointGoal: true,
+        useAmountGoal: true,
+        overallGoalPoints: 2000,
+        overallGoalAmount: 1500000,
+        autoSumTeamAmount: false,
+        confirmedAmount: 1021910,
+        footerNotes: '11月20・21日分 238ポイント・149,000円を加算。11月17日の金額は未反映。\n小林香純の11月20・21日分は24ポイント。',
+        bannerMode: 'guide',    // 'guide' | 'blank' | 'image'
+        updatedAt: Date.now(),
+        teams: [
+          {
+            id: 't1',
+            name: 'チーム太陽拳！',
+            color: '#b8293d',
+            targetPoints: 1000,
+            targetAmount: 750000,
+            currentAmount: 541910,
+            members: [
+              { id: 'm1', name: '馬場主任', points: 54 },
+              { id: 'm2', name: '橋本主任', points: 90 },
+              { id: 'm3', name: '須田店長', points: 74 },
+              { id: 'm4', name: '田中バイトリーダー', points: 200 },
+              { id: 'm5', name: '岩瀬', points: null },
+              { id: 'm6', name: '田畑', points: 324 },
+              { id: 'm7', name: '吉野', points: null }
+            ]
+          },
+          {
+            id: 't2',
+            name: "チームLet's Go!!!!大倉",
+            color: '#1a738b',
+            targetPoints: 1000,
+            targetAmount: 750000,
+            currentAmount: 480000,
+            members: [
+              { id: 'm8', name: '大倉主任', points: 204 },
+              { id: 'm9', name: '間野田', points: 221 },
+              { id: 'm10', name: '齋藤ピット長', points: 50 },
+              { id: 'm11', name: '茂野', points: 36 },
+              { id: 'm12', name: '小林香純', points: 32 },
+              { id: 'm13', name: '小林優斗', points: null },
+              { id: 'm14', name: '安藤', points: 140 },
+              { id: 'm15', name: 'ドン', points: null },
+              { id: 'm16', name: 'ティン', points: null }
+            ]
+          }
+        ]
+      };
+    }
+
+    // =========================================================================
+    // 2. APPLICATION STATE
+    // =========================================================================
+    let app = null;
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let unsubscribeBoards = null;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'scoreboard-studio';
+
+    let boardsMap = {};
+    let currentBoardId = null;
+    let currentBoard = null;
+    let autoSaveTimer = null;
+
+    // View Modes: 'distribution' (配布画像モード) | 'worksheet' (記入用紙モード)
+    let viewMode = 'distribution';
+    let printShowBanner = false;   // Default OFF for 1-page A4 handwriting room
+    let printInkSave = false;      // Ink-saver white base toggle
+
+    // Banner image state (local memory only)
+    let uploadedImageObj = null;
+    let imageTransform = { zoom: 100, x: 0, y: 0 };
+
+    // Mobile view mode: 'fit' | 'full'
+    let mobileZoomMode = 'fit';
+
+    // Modal states
+    let setupModalMode = 'edit';
+    let setupDraftTeams = [];
+    let authModalMode = 'login';
+    let confirmCallback = null;
+
+    // =========================================================================
+    // 3. UTILITIES
+    // =========================================================================
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const icon = document.getElementById('toast-icon');
+      const text = document.getElementById('toast-text');
+      text.textContent = message;
+      icon.className =
+        type === 'error'
+          ? 'fa-solid fa-circle-exclamation text-rose-400 text-sm'
+          : type === 'info'
+          ? 'fa-solid fa-circle-info text-sky-400 text-sm'
+          : 'fa-solid fa-circle-check text-emerald-400 text-sm';
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2800);
+    }
+
+    function setSaveStatus(state) {
+      const icon = document.getElementById('save-status-icon');
+      const text = document.getElementById('save-status-text');
+      if (!icon || !text) return;
+      if (state === 'saving') {
+        icon.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-400"></i>';
+        text.textContent = '保存中...';
+      } else if (state === 'saved') {
+        icon.innerHTML = '<i class="fa-solid fa-cloud text-emerald-400"></i>';
+        text.textContent = 'クラウド同期済';
+      } else if (state === 'local') {
+        icon.innerHTML = '<i class="fa-solid fa-laptop text-sky-400"></i>';
+        text.textContent = 'ローカルモード';
+      } else {
+        icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i>';
+        text.textContent = 'エラー';
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getTeamPoints(team) {
+      return (team.members || []).reduce((sum, m) => {
+        const v = Number(m.points);
+        return sum + (m.points !== null && m.points !== '' && !isNaN(v) ? v : 0);
+      }, 0);
+    }
+
+    function getOverallPoints(board) {
+      return (board.teams || []).reduce((sum, t) => sum + getTeamPoints(t), 0);
+    }
+
+    function getEffectiveOverallAmount(board) {
+      const teamAmtEnabled = (board.goalScope === 'team' || board.goalScope === 'both') && board.useAmountGoal;
+      if (teamAmtEnabled && board.autoSumTeamAmount) {
+        return (board.teams || []).reduce((sum, t) => sum + (Number(t.currentAmount) || 0), 0);
+      }
+      return Number(board.confirmedAmount) || 0;
+    }
+
+    function shortTeamName(name) {
+      return (name || 'チーム').replace(/^チーム/, '').trim() || name;
+    }
+
+    function extractShortDate(dateText) {
+      const match = String(dateText || '').match(/(\d{1,2}月\d{1,2}日)/);
+      return match ? `${match[1]}集計時点` : '現在';
+    }
+
+    function autoResizeTextarea(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = Math.max(42, el.scrollHeight) + 'px';
+    }
+
+    function copyTextToClipboard(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast('AI画像生成プロンプトをコピーしました！');
+      } catch (e) {
+        showToast('コピーに失敗しました', 'error');
+      }
+      document.body.removeChild(ta);
+    }
+
+    // =========================================================================
+    // 4. FIREBASE AUTH & PRIVATE FIRESTORE SYNC (WITH SAFE IN-MEMORY FALLBACK)
+    // =========================================================================
+    async function initFirebase() {
+      try {
+        let firebaseConfig = null;
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          firebaseConfig = JSON.parse(__firebase_config);
+        } else if (CUSTOM_FIREBASE_CONFIG) {
+          firebaseConfig = CUSTOM_FIREBASE_CONFIG;
+        }
+
+        if (!firebaseConfig) {
+          setSaveStatus('local');
+          loadLocalDemo();
+          return;
+        }
+
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        // RULE 3: Authenticate FIRST before any Firestore operations
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+
+        onAuthStateChanged(auth, (user) => {
+          currentUser = user;
+          updateAuthUI();
+          if (user) {
+            subscribeToUserBoards(user.uid);
+          } else {
+            if (unsubscribeBoards) {
+              unsubscribeBoards();
+              unsubscribeBoards = null;
+            }
+            boardsMap = {};
+            currentBoard = null;
+            currentBoardId = null;
+            openAuthModal();
+          }
+        });
+      } catch (err) {
+        console.error('Firebase init error:', err);
+        setSaveStatus('local');
+        loadLocalDemo();
+      }
+    }
+
+    function loadLocalDemo() {
+      const demo = createDemoBoard('demo_1');
+      boardsMap = { [demo.id]: demo };
+      currentBoardId = demo.id;
+      currentBoard = demo;
+      updateAuthUI();
+      renderBoardSelector();
+      renderSheetFull();
+    }
+
+    function subscribeToUserBoards(uid) {
+      if (!db || !uid) return;
+      if (unsubscribeBoards) unsubscribeBoards();
+
+      // RULE 1: Strict private user path
+      const colRef = collection(db, 'artifacts', appId, 'users', uid, 'scoreboards');
+      unsubscribeBoards = onSnapshot(
+        colRef,
+        (snapshot) => {
+          const nextMap = {};
+          snapshot.forEach((docSnap) => {
+            nextMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+          });
+          boardsMap = nextMap;
+
+          // RULE 2: Sort in JS memory
+          const list = Object.values(boardsMap).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+          if (list.length === 0) {
+            const demo = createDemoBoard();
+            currentBoard = demo;
+            currentBoardId = demo.id;
+            boardsMap[demo.id] = demo;
+            saveBoardToFirestore(demo, true);
+          } else {
+            if (!currentBoardId || !boardsMap[currentBoardId]) {
+              currentBoardId = list[0].id;
+            }
+            if (!currentBoard || currentBoard.id !== currentBoardId) {
+              currentBoard = JSON.parse(JSON.stringify(boardsMap[currentBoardId]));
+            } else if ((boardsMap[currentBoardId].updatedAt || 0) > (currentBoard.updatedAt || 0)) {
+              currentBoard = JSON.parse(JSON.stringify(boardsMap[currentBoardId]));
+            }
+          }
+
+          setSaveStatus('saved');
+          renderBoardSelector();
+          renderSheetFull();
+        },
+        (error) => {
+          console.error('Firestore snapshot error:', error);
+          setSaveStatus('error');
+          if (!currentBoard) loadLocalDemo();
+        }
+      );
+    }
+
+    async function saveBoardToFirestore(board, silent = false) {
+      if (!board) return;
+      board.updatedAt = Date.now();
+      boardsMap[board.id] = JSON.parse(JSON.stringify(board));
+
+      if (!db || !currentUser) {
+        setSaveStatus('local');
+        if (!silent) showToast('ローカル状態を更新しました', 'info');
+        return;
+      }
+
+      try {
+        setSaveStatus('saving');
+        const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'scoreboards', board.id);
+        await setDoc(docRef, board);
+        setSaveStatus('saved');
+        if (!silent) showToast('クラウドに保存しました');
+      } catch (err) {
+        console.error('Save error:', err);
+        setSaveStatus('error');
+        if (!silent) showToast('保存に失敗しました', 'error');
+      }
+    }
+
+    function scheduleAutoSave() {
+      if (!currentBoard) return;
+      setSaveStatus('saving');
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        saveBoardToFirestore(currentBoard, true);
+      }, 900);
+    }
+
+    async function deleteCurrentBoard() {
+      if (!currentBoard) return;
+      const targetId = currentBoard.id;
+      if (db && currentUser) {
+        try {
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'scoreboards', targetId));
+          currentBoard = null;
+          currentBoardId = null;
+          showToast('得点表を削除しました', 'info');
+        } catch (err) {
+          showToast('削除に失敗しました', 'error');
+        }
+      } else {
+        delete boardsMap[targetId];
+        const rem = Object.values(boardsMap);
+        if (rem.length === 0) {
+          loadLocalDemo();
+        } else {
+          currentBoardId = rem[0].id;
+          currentBoard = JSON.parse(JSON.stringify(rem[0]));
+          renderBoardSelector();
+          renderSheetFull();
+        }
+        showToast('得点表を削除しました', 'info');
+      }
+    }
+
+    // =========================================================================
+    // 5. VIEW MODE & INK-SAVER THEME CONTROLLER
+    // =========================================================================
+    function updateModeUI() {
+      const isWork = viewMode === 'worksheet';
+
+      // Top mode toggle buttons
+      const btnDist = document.getElementById('btn-mode-distribution');
+      const btnWork = document.getElementById('btn-mode-worksheet');
+
+      btnDist.className = `px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+        !isWork ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+      }`;
+      btnWork.className = `px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+        isWork ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+      }`;
+
+      // Action buttons
+      document.getElementById('btn-print-worksheet').classList.toggle('hidden', !isWork);
+      document.getElementById('btn-export-png-label').textContent = isWork ? 'PNG保存' : 'PNG書き出し';
+
+      // Sub-bars
+      document.getElementById('subbar-distribution').classList.toggle('hidden', isWork);
+      document.getElementById('subbar-worksheet').classList.toggle('hidden', !isWork);
+
+      // Worksheet header/footer elements
+      document.getElementById('worksheet-header-datebox').classList.toggle('hidden', !isWork);
+      document.getElementById('worksheet-date-prefix').classList.toggle('hidden', !isWork);
+      document.getElementById('worksheet-date-suffix').classList.toggle('hidden', !isWork);
+      document.getElementById('footer-notes-distribution').classList.toggle('hidden', isWork);
+      document.getElementById('footer-memo-worksheet').classList.toggle('hidden', !isWork);
+
+      // Banner visibility: always shown in distribution mode; controlled by toggle in worksheet mode
+      const showBanner = !isWork || printShowBanner;
+      document.getElementById('sheet-banner-wrapper').classList.toggle('hidden', !showBanner);
+
+      // Add top padding to teams wrapper if banner is hidden
+      const teamsWrap = document.getElementById('sheet-teams-wrapper');
+      teamsWrap.classList.toggle('pt-4', !showBanner);
+      teamsWrap.classList.toggle('pt-1', showBanner);
+
+      applyInkSaverTheme();
+    }
+
+    function applyInkSaverTheme() {
+      const inkSave = viewMode === 'worksheet' && printInkSave;
+      const sheet = document.getElementById('scoreboard-sheet');
+      const headerArea = document.getElementById('sheet-header-area');
+      const bannerWrap = document.getElementById('sheet-banner-wrapper');
+      const teamsWrap = document.getElementById('sheet-teams-wrapper');
+      const footerWrap = document.getElementById('sheet-footer-wrapper');
+      const footerPanel = document.getElementById('sheet-footer-panel');
+
+      sheet.classList.toggle('ink-save-sheet', inkSave);
+
+      [headerArea, bannerWrap, teamsWrap, footerWrap].forEach((el) => {
+        el.style.backgroundColor = inkSave ? '#ffffff' : '#141e30';
+      });
+
+      if (inkSave) {
+        footerPanel.className = 'bg-slate-50 border-2 border-slate-400 rounded-sm px-5 py-3.5 space-y-3 transition-colors';
+      } else {
+        footerPanel.className = 'bg-[#0d1524] border border-slate-700/50 rounded-sm px-5 py-4 space-y-3 transition-colors';
+      }
+
+      // Text color adjustments for ink-saver white background
+      document.querySelectorAll('.sheet-kicker-text, .sheet-date-text, .footer-sub-text, .footer-unit-text, .footer-goal-label').forEach((el) => {
+        el.style.color = inkSave ? '#334155' : '';
+      });
+      document.querySelectorAll('.sheet-title-text, .footer-strong-text, .footer-amount-input').forEach((el) => {
+        el.style.color = inkSave ? '#0f172a' : '';
+      });
+      document.querySelectorAll('.sheet-subtitle-text, .footer-accent-label').forEach((el) => {
+        el.style.color = inkSave ? '#92400e' : '';
+      });
+    }
+
+    // =========================================================================
+    // 6. RENDERING: WYSIWYG SCOREBOARD & WORKSHEET
+    // =========================================================================
+    function renderBoardSelector() {
+      const sel = document.getElementById('board-selector');
+      const list = Object.values(boardsMap).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      sel.innerHTML = '';
+      list.forEach((b) => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = `${b.monthLabel || ''} ${b.mainTitle || '無題'}`.trim();
+        if (b.id === currentBoardId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+
+    function renderSheetFull() {
+      if (!currentBoard) return;
+
+      updateModeUI();
+
+      // 1. Header Inputs
+      document.getElementById('ed-kicker').value = currentBoard.kicker || '';
+      document.getElementById('ed-month-display').value = currentBoard.monthLabel || '';
+      document.getElementById('ed-main-title').value = currentBoard.mainTitle || '';
+      document.getElementById('ed-subtitle').value = currentBoard.subtitle || '';
+      document.getElementById('ed-date-text').value = currentBoard.dateText || '';
+
+      // 2. Banner Section
+      renderBannerSection();
+
+      // 3. Teams Grid
+      renderTeamsGrid();
+
+      // 4. Footer Notes & Calculated Totals
+      const notesEl = document.getElementById('ed-footer-notes');
+      notesEl.value = currentBoard.footerNotes || '';
+      autoResizeTextarea(notesEl);
+
+      updateDynamicTotalsAndSummary();
+      requestAnimationFrame(updateSheetScale);
+    }
+
+    function renderBannerSection() {
+      if (!currentBoard) return;
+      const mode = currentBoard.bannerMode || 'guide';
+
+      document.querySelectorAll('.banner-mode-btn').forEach((btn) => {
+        const active = btn.dataset.bannerMode === mode;
+        btn.className = `banner-mode-btn px-2.5 py-1 rounded-md font-bold transition ${
+          active ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+        }`;
+      });
+
+      document.getElementById('banner-view-guide').classList.toggle('hidden', mode !== 'guide');
+      document.getElementById('banner-view-blank').classList.toggle('hidden', mode !== 'blank');
+      document.getElementById('banner-view-image').classList.toggle('hidden', mode !== 'image');
+      document.getElementById('banner-image-toolbar').classList.toggle('hidden', mode !== 'image' || viewMode === 'worksheet');
+
+      if (mode === 'guide') {
+        const zonesEl = document.getElementById('banner-color-zones');
+        zonesEl.innerHTML = '';
+        const count = currentBoard.teams.length;
+        const posLabels =
+          count === 2 ? ['左エリア', '右エリア'] :
+          count === 3 ? ['左エリア', '中央エリア', '右エリア'] :
+          ['左端', '中左', '中右', '右端'];
+
+        const specLines = [];
+        currentBoard.teams.forEach((t, idx) => {
+          const z = document.createElement('div');
+          z.className = 'flex-1 h-full flex flex-col justify-end p-3 border-r last:border-r-0 border-white/15';
+          z.style.background = `linear-gradient(180deg, ${t.color}cc 0%, ${t.color}66 100%)`;
+          z.innerHTML = `
+            <div class="text-[11px] font-bold text-white/90 drop-shadow">${posLabels[idx]}</div>
+            <div class="text-[13px] font-black text-white truncate drop-shadow">${escapeHtml(t.name)}</div>
+            <div class="text-[10px] font-mono text-white/80">${escapeHtml(t.color.toUpperCase())}</div>
+          `;
+          zonesEl.appendChild(z);
+          specLines.push(`${posLabels[idx]}：${t.name}（${t.color.toUpperCase()}）`);
+        });
+
+        document.getElementById('banner-spec-teams').innerHTML =
+          `<div class="text-amber-300 text-[12px] mb-1">${count}チーム構成・背景カラー配置指定</div>` +
+          specLines.map((l) => `<div>${escapeHtml(l)}</div>`).join('');
+      } else if (mode === 'image') {
+        const hasImg = !!uploadedImageObj;
+        document.getElementById('banner-upload-overlay').classList.toggle('hidden', hasImg);
+        document.getElementById('banner-sliders-wrap').classList.toggle('hidden', !hasImg);
+        document.getElementById('btn-clear-image').classList.toggle('hidden', !hasImg);
+        if (hasImg) drawBannerImageToCanvas();
+      }
+    }
+
+    function renderTeamsGrid() {
+      const grid = document.getElementById('teams-grid');
+      const count = currentBoard.teams.length;
+      const isWork = viewMode === 'worksheet';
+      const inkSave = isWork && printInkSave;
+
+      grid.className = count === 3 ? 'grid grid-cols-3 gap-3 items-stretch' : 'grid grid-cols-2 gap-4 items-stretch';
+      grid.innerHTML = '';
+
+      const isCompact = count === 3;
+      const showTeamGoal = currentBoard.goalScope === 'team' || currentBoard.goalScope === 'both';
+      const showTeamPtsGoal = showTeamGoal && currentBoard.usePointGoal;
+      const showTeamAmtGoal = showTeamGoal && currentBoard.useAmountGoal;
+
+      currentBoard.teams.forEach((team, tIdx) => {
+        const totalPts = getTeamPoints(team);
+        let rowsHtml = '';
+
+        if (!isWork) {
+          // ==================== DISTRIBUTION MODE ROWS (NO BOX ON CUMULATIVE POINTS) ====================
+          team.members.forEach((m, mIdx) => {
+            const ptsVal = m.points !== null && m.points !== undefined && m.points !== '' ? m.points : '';
+            rowsHtml += `
+              <tr class="border-b border-slate-200 last:border-b-0 group">
+                <td class="py-1.5 ${isCompact ? 'pl-1.5 pr-1' : 'pl-3 pr-2'}">
+                  <input type="text" data-member-field="name" data-t="${tIdx}" data-m="${mIdx}" value="${escapeHtml(m.name)}" placeholder="氏名"
+                    class="borderless-score-input w-full ${isCompact ? 'text-[12px]' : 'text-[14.5px]'} font-bold text-slate-800 px-1 py-0.5 leading-snug" />
+                </td>
+                <td class="py-1.5 ${isCompact ? 'pr-1.5' : 'pr-3'} text-right whitespace-nowrap">
+                  <div class="inline-flex items-center justify-end gap-1">
+                    <!-- Completely Borderless Cumulative Points -->
+                    <input type="number" data-member-field="points" data-t="${tIdx}" data-m="${mIdx}" value="${ptsVal}" placeholder=""
+                      class="borderless-score-input ${isCompact ? 'w-[54px] text-[14px]' : 'w-[74px] text-[16px]'} py-0.5 px-1 text-right font-black text-slate-900 tabular-nums" />
+                    <span class="${isCompact ? 'text-[11px]' : 'text-[13px]'} font-semibold text-slate-600">点</span>
+
+                    <!-- Quick Daily Add (+当日) - HIDDEN ON PNG EXPORT -->
+                    <div class="export-hide inline-flex items-center ml-1.5">
+                      <input type="number" data-delta="${tIdx}-${mIdx}" placeholder="+当日"
+                        class="${isCompact ? 'w-[38px] text-[10px]' : 'w-[46px] text-[11px]'} h-[24px] bg-emerald-50 border border-emerald-300 rounded-l px-1 text-right font-bold text-emerald-800 placeholder-emerald-600/60 focus:outline-none focus:bg-white" />
+                      <button type="button" data-action="add-delta" data-t="${tIdx}" data-m="${mIdx}" title="当日分を加算"
+                        class="h-[24px] px-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black rounded-r transition">
+                        +
+                      </button>
+                    </div>
+
+                    <!-- Delete Member Row - HIDDEN ON PNG EXPORT -->
+                    <button type="button" data-action="remove-member" data-t="${tIdx}" data-m="${mIdx}" title="行を削除"
+                      class="export-hide text-slate-300 hover:text-rose-500 px-1 transition">
+                      <i class="fa-solid fa-xmark text-[11px]"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          });
+        } else {
+          // ==================== WORKSHEET MODE ROWS (BORDERLESS CUMULATIVE + HANDWRITING BOX) ====================
+          team.members.forEach((m) => {
+            const hasPts = m.points !== null && m.points !== undefined && m.points !== '' && Number(m.points) !== 0;
+            const ptsDisplay = hasPts ? Number(m.points).toLocaleString() : '';
+            rowsHtml += `
+              <tr class="border-b border-slate-300 last:border-b-0 h-[38px]">
+                <!-- 1. Name -->
+                <td class="py-1 ${isCompact ? 'pl-1.5 pr-1 text-[12px]' : 'pl-3 pr-1.5 text-[14px]'} font-bold text-slate-800 leading-tight">
+                  ${escapeHtml(m.name)}
+                </td>
+                <!-- 2. Current Cumulative Points (BORDERLESS!) -->
+                <td class="py-1 px-1.5 text-right whitespace-nowrap">
+                  <span class="${isCompact ? 'text-[13px]' : 'text-[15px]'} font-black text-slate-900 tabular-nums inline-block min-w-[30px]">${ptsDisplay}</span>
+                  <span class="text-[11px] font-semibold text-slate-600 ml-0.5">点</span>
+                </td>
+                <!-- 3. Handwritten Earned Points Box (CRISP BORDERED RECTANGLE) -->
+                <td class="py-1 ${isCompact ? 'pr-1.5 pl-1' : 'pr-2.5 pl-1.5'} text-right whitespace-nowrap">
+                  <div class="inline-flex items-center justify-end gap-1">
+                    <div class="handwrite-box ${isCompact ? 'w-[62px]' : 'w-[96px]'} h-[28px]"></div>
+                    <span class="text-[11px] font-bold text-slate-700">点</span>
+                  </div>
+                </td>
+              </tr>
+            `;
+          });
+        }
+
+        // Team Target Progress Bars (shown in both modes if configured)
+        const teamGoalsBlock = (showTeamPtsGoal || showTeamAmtGoal) ? `
+          <div class="px-3 py-2 bg-slate-50 border-t border-slate-200 space-y-1.5">
+            ${showTeamPtsGoal ? `
+              <div>
+                <div class="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-0.5">
+                  <span>ポイント目標: ${(Number(team.targetPoints) || 0).toLocaleString()}点</span>
+                  <span id="team-goal-pts-status-${tIdx}" style="color: ${escapeHtml(team.color)};">0%</span>
+                </div>
+                <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div id="team-goal-pts-bar-${tIdx}" class="h-full rounded-full transition-all duration-300" style="width: 0%; background-color: ${escapeHtml(team.color)};"></div>
+                </div>
+              </div>
+            ` : ''}
+
+            ${showTeamAmtGoal ? `
+              <div class="${showTeamPtsGoal ? 'pt-1.5 border-t border-slate-200/80' : ''}">
+                <div class="flex items-center justify-between gap-1 text-[11px] font-bold text-slate-700 mb-0.5">
+                  <div class="flex items-center gap-1">
+                    <span>累計金額:</span>
+                    ${!isWork ? `
+                      <input type="number" data-team-amount="${tIdx}" value="${team.currentAmount ?? 0}"
+                        class="borderless-score-input w-[80px] px-1 py-0.5 text-[11.5px] font-black text-slate-900 text-right tabular-nums" />
+                    ` : `
+                      <span class="font-black text-slate-900 tabular-nums">${(Number(team.currentAmount) || 0).toLocaleString()}</span>
+                    `}
+                    <span>円</span>
+                  </div>
+                  <span id="team-goal-amt-status-${tIdx}" class="text-emerald-700">0%</span>
+                </div>
+                <div class="text-[10px] text-slate-500 mb-0.5">
+                  金額目標: ${(Number(team.targetAmount) || 0).toLocaleString()}円
+                </div>
+                <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div id="team-goal-amt-bar-${tIdx}" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%;"></div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        ` : '';
+
+        // Team Header Style (solid team color normally; clean white + thick team-color top/left accent in Ink-Save mode)
+        const headerStyle = inkSave
+          ? `background-color: #f8fafc; border-top: 5px solid ${escapeHtml(team.color)}; border-bottom: 2px solid ${escapeHtml(team.color)}; color: #0f172a;`
+          : `background-color: ${escapeHtml(team.color)}; color: #ffffff;`;
+
+        // Team Footer Total Bar
+        const teamFooterBarHtml = !isWork
+          ? `
+            <div class="p-2.5 bg-white">
+              <div class="px-3.5 py-2 flex items-center justify-between rounded-[3px]" style="background-color: ${escapeHtml(team.color)};">
+                <span class="text-white font-bold ${isCompact ? 'text-[13px]' : 'text-[16px]'}">チーム合計</span>
+                <div class="flex items-baseline gap-1.5">
+                  <span id="team-total-val-${tIdx}" class="text-white font-black ${isCompact ? 'text-[18px]' : 'text-[22px]'} leading-none tabular-nums">
+                    ${totalPts.toLocaleString()}
+                  </span>
+                  <span class="text-white/95 font-bold ${isCompact ? 'text-[12px]' : 'text-[14px]'}">点</span>
+                </div>
+              </div>
+            </div>
+          `
+          : `
+            <div class="p-2 bg-slate-50 border-t-2 border-slate-300">
+              <div class="px-2.5 py-1.5 flex items-center justify-between gap-2 rounded-[3px]" style="${
+                inkSave
+                  ? `background-color: #ffffff; border: 1.5px solid ${escapeHtml(team.color)}; color: #0f172a;`
+                  : `background-color: ${escapeHtml(team.color)}; color: #ffffff;`
+              }">
+                <div class="flex items-baseline gap-1.5">
+                  <span class="font-bold ${isCompact ? 'text-[11px]' : 'text-[13px]'}">累計計</span>
+                  <span id="team-total-val-${tIdx}" class="font-black ${isCompact ? 'text-[15px]' : 'text-[18px]'} leading-none tabular-nums">
+                    ${totalPts.toLocaleString()}
+                  </span>
+                  <span class="font-bold text-[11px]">点</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold ${isCompact ? 'text-[10px]' : 'text-[12px]'}">当日計</span>
+                  <div class="handwrite-box ${isCompact ? 'w-[54px]' : 'w-[76px]'} h-[26px]"></div>
+                  <span class="font-bold text-[11px]">点</span>
+                </div>
+              </div>
+            </div>
+          `;
+
+        const cardBorderClass = inkSave ? 'border-2 border-slate-400' : 'shadow-md';
+
+        const cardHtml = `
+          <div class="bg-white rounded-[3px] overflow-hidden flex flex-col justify-between ${cardBorderClass}">
+            <div>
+              <!-- Team Header -->
+              <div class="px-3.5 py-2 flex items-center justify-between gap-2" style="${headerStyle}">
+                ${!isWork ? `
+                  <input type="text" data-team-name="${tIdx}" value="${escapeHtml(team.name)}"
+                    class="wysiwyg-input w-full text-white font-black ${isCompact ? 'text-[15px]' : 'text-[19px]'} tracking-wide leading-tight px-1 -ml-1" />
+                ` : `
+                  <div class="w-full font-black ${isCompact ? 'text-[15px]' : 'text-[18px]'} tracking-wide leading-tight truncate">
+                    ${escapeHtml(team.name)}
+                  </div>
+                `}
+              </div>
+
+              <!-- Score Table -->
+              <div class="px-1.5 py-1">
+                <table class="w-full border-collapse">
+                  <thead>
+                    <tr class="border-b-2 border-slate-300">
+                      <th class="text-left pb-1.5 pt-1 ${isCompact ? 'pl-1.5 text-[11px]' : 'pl-3 text-[12.5px]'} font-bold text-slate-600">氏名</th>
+                      ${!isWork ? `
+                        <th class="text-right pb-1.5 pt-1 ${isCompact ? 'pr-2 text-[11px]' : 'pr-4 text-[12.5px]'} font-bold text-slate-600">累計ポイント</th>
+                      ` : `
+                        <th class="text-right pb-1.5 pt-1 px-1.5 ${isCompact ? 'text-[10.5px]' : 'text-[12px]'} font-bold text-slate-600">累計</th>
+                        <th class="text-right pb-1.5 pt-1 ${isCompact ? 'pr-2 text-[10.5px]' : 'pr-4 text-[12px]'} font-black text-slate-800">獲得ポイント</th>
+                      `}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+
+                ${!isWork ? `
+                  <!-- Add Member Row Button (HIDDEN ON PNG EXPORT) -->
+                  <div class="export-hide mt-1.5 px-1 pb-1">
+                    <button type="button" data-action="add-member" data-t="${tIdx}"
+                      class="w-full py-1 rounded border border-dashed border-slate-300 hover:border-amber-500 text-slate-400 hover:text-amber-600 text-[11px] font-bold transition flex items-center justify-center gap-1">
+                      <i class="fa-solid fa-user-plus text-[10px]"></i> メンバーを追加
+                    </button>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- Team Footer -->
+            <div>
+              ${teamGoalsBlock}
+              ${teamFooterBarHtml}
+            </div>
+          </div>
+        `;
+        grid.insertAdjacentHTML('beforeend', cardHtml);
+      });
+    }
+
+    /**
+     * Updates all calculated totals, progress bars, and battle status without losing cursor focus
+     */
+    function updateDynamicTotalsAndSummary() {
+      if (!currentBoard) return;
+
+      const showTeamGoal = currentBoard.goalScope === 'team' || currentBoard.goalScope === 'both';
+      const showTeamPtsGoal = showTeamGoal && currentBoard.usePointGoal;
+      const showTeamAmtGoal = showTeamGoal && currentBoard.useAmountGoal;
+
+      currentBoard.teams.forEach((team, tIdx) => {
+        const pts = getTeamPoints(team);
+        const totalEl = document.getElementById(`team-total-val-${tIdx}`);
+        if (totalEl) totalEl.textContent = pts.toLocaleString();
+
+        if (showTeamPtsGoal) {
+          const target = Number(team.targetPoints) || 0;
+          const pct = target > 0 ? Math.min(100, Math.round((pts / target) * 100)) : 0;
+          const remain = Math.max(0, target - pts);
+          const statusEl = document.getElementById(`team-goal-pts-status-${tIdx}`);
+          const barEl = document.getElementById(`team-goal-pts-bar-${tIdx}`);
+          if (statusEl) {
+            statusEl.textContent = target > 0
+              ? (pts >= target ? `達成！(${Math.round((pts / target) * 100)}%)` : `${pct}% (残${remain.toLocaleString()}点)`)
+              : '-';
+          }
+          if (barEl) barEl.style.width = `${pct}%`;
+        }
+
+        if (showTeamAmtGoal) {
+          const amt = Number(team.currentAmount) || 0;
+          const targetAmt = Number(team.targetAmount) || 0;
+          const pctAmt = targetAmt > 0 ? Math.min(100, Math.round((amt / targetAmt) * 100)) : 0;
+          const statusAmtEl = document.getElementById(`team-goal-amt-status-${tIdx}`);
+          const barAmtEl = document.getElementById(`team-goal-amt-bar-${tIdx}`);
+          if (statusAmtEl) {
+            statusAmtEl.textContent = targetAmt > 0
+              ? (amt >= targetAmt ? `達成！(${Math.round((amt / targetAmt) * 100)}%)` : `${pctAmt}%`)
+              : '-';
+          }
+          if (barAmtEl) barAmtEl.style.width = `${pctAmt}%`;
+        }
+      });
+
+      // Overall Totals
+      const overallPts = getOverallPoints(currentBoard);
+      document.getElementById('footer-overall-points').textContent = overallPts.toLocaleString();
+
+      // Confirmed Overall Amount
+      const autoToggleWrap = document.getElementById('amount-sum-toggle-wrap');
+      const chkAutoSum = document.getElementById('chk-auto-sum-amount');
+      const amtInput = document.getElementById('ed-overall-amount');
+
+      const showAutoToggle = showTeamAmtGoal && viewMode === 'distribution';
+      autoToggleWrap.classList.toggle('hidden', !showAutoToggle);
+      autoToggleWrap.classList.toggle('flex', showAutoToggle);
+      chkAutoSum.checked = !!currentBoard.autoSumTeamAmount;
+
+      const effectiveAmt = getEffectiveOverallAmount(currentBoard);
+      if (showTeamAmtGoal && currentBoard.autoSumTeamAmount) {
+        amtInput.value = effectiveAmt;
+        amtInput.readOnly = true;
+      } else {
+        amtInput.readOnly = viewMode === 'worksheet';
+        if (document.activeElement !== amtInput) {
+          amtInput.value = currentBoard.confirmedAmount ?? '';
+        }
+      }
+
+      // Overall Goals Progress Bars
+      const showOverallGoal = currentBoard.goalScope === 'overall' || currentBoard.goalScope === 'both';
+      const showOgPts = showOverallGoal && currentBoard.usePointGoal && (Number(currentBoard.overallGoalPoints) > 0);
+      const showOgAmt = showOverallGoal && currentBoard.useAmountGoal && (Number(currentBoard.overallGoalAmount) > 0);
+
+      document.getElementById('footer-overall-goals').classList.toggle('hidden', !showOgPts && !showOgAmt);
+      document.getElementById('overall-goal-points-wrap').classList.toggle('hidden', !showOgPts);
+      document.getElementById('overall-goal-amount-wrap').classList.toggle('hidden', !showOgAmt);
+
+      if (showOgPts) {
+        const t = Number(currentBoard.overallGoalPoints);
+        const pct = Math.min(100, Math.round((overallPts / t) * 100));
+        const rem = Math.max(0, t - overallPts);
+        document.getElementById('og-pts-target').textContent = t.toLocaleString();
+        document.getElementById('og-pts-status').textContent =
+          overallPts >= t
+            ? `目標達成！（${Math.round((overallPts / t) * 100)}%）`
+            : `達成率 ${pct}%（あと ${rem.toLocaleString()}pt）`;
+        document.getElementById('og-pts-bar').style.width = `${pct}%`;
+      }
+
+      if (showOgAmt) {
+        const t = Number(currentBoard.overallGoalAmount);
+        const pct = Math.min(100, Math.round((effectiveAmt / t) * 100));
+        const rem = Math.max(0, t - effectiveAmt);
+        document.getElementById('og-amt-target').textContent = t.toLocaleString();
+        document.getElementById('og-amt-status').textContent =
+          effectiveAmt >= t
+            ? `目標達成！（${Math.round((effectiveAmt / t) * 100)}%）`
+            : `達成率 ${pct}%（あと ${rem.toLocaleString()}円）`;
+        document.getElementById('og-amt-bar').style.width = `${pct}%`;
+      }
+
+      // Battle Status Summary
+      document.getElementById('footer-battle-date').textContent =
+        `累計対戦状況（${extractShortDate(currentBoard.dateText)}）`;
+
+      const ranked = currentBoard.teams
+        .map((t) => ({ name: shortTeamName(t.name), pts: getTeamPoints(t) }))
+        .sort((a, b) => b.pts - a.pts);
+
+      let summaryText = '';
+      if (ranked.length === 2) {
+        const diff = ranked[0].pts - ranked[1].pts;
+        summaryText =
+          diff === 0
+            ? `${ranked[0].name} ${ranked[0].pts.toLocaleString()}点 対 ${ranked[1].name} ${ranked[1].pts.toLocaleString()}点 ／ 同点（接戦）`
+            : `${ranked[0].name} ${ranked[0].pts.toLocaleString()}点（優勢） 対 ${ranked[1].name} ${ranked[1].pts.toLocaleString()}点（劣勢） ／ ${diff.toLocaleString()}ポイント差`;
+      } else if (ranked.length >= 3) {
+        const diff12 = ranked[0].pts - ranked[1].pts;
+        summaryText =
+          ranked.map((r, i) => `${i + 1}位 ${r.name} ${r.pts.toLocaleString()}点`).join(' ／ ') +
+          (diff12 === 0 ? ' （首位同点）' : ` （首位差 ${diff12.toLocaleString()}点）`);
+      }
+      document.getElementById('footer-battle-summary').textContent = summaryText;
+    }
+
+    // =========================================================================
+    // 7. BANNER IMAGE CANVAS & RESPONSIVE SCALING
+    // =========================================================================
+    function drawBannerImageToCanvas() {
+      const canvas = document.getElementById('banner-canvas');
+      if (!canvas || !uploadedImageObj) return;
+      const ctx = canvas.getContext('2d');
+      const cw = canvas.width;
+      const ch = canvas.height;
+
+      ctx.fillStyle = '#0c1322';
+      ctx.fillRect(0, 0, cw, ch);
+
+      const iw = uploadedImageObj.naturalWidth || uploadedImageObj.width;
+      const ih = uploadedImageObj.naturalHeight || uploadedImageObj.height;
+      if (!iw || !ih) return;
+
+      const baseScale = Math.max(cw / iw, ch / ih);
+      const scale = baseScale * (imageTransform.zoom / 100);
+      const drawW = iw * scale;
+      const drawH = ih * scale;
+
+      const panRangeX = Math.max(0, (drawW - cw) / 2) + cw * 0.25;
+      const panRangeY = Math.max(0, (drawH - ch) / 2) + ch * 0.25;
+
+      const dx = (cw - drawW) / 2 + (imageTransform.x / 100) * panRangeX;
+      const dy = (ch - drawH) / 2 + (imageTransform.y / 100) * panRangeY;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(uploadedImageObj, dx, dy, drawW, drawH);
+    }
+
+    function updateSheetScale() {
+      const outer = document.getElementById('sheet-outer-container');
+      const wrapper = document.getElementById('sheet-scale-wrapper');
+      const sheet = document.getElementById('scoreboard-sheet');
+      if (!outer || !wrapper || !sheet) return;
+
+      const vw = window.innerWidth;
+      if (vw < 832 && mobileZoomMode === 'fit') {
+        const availableW = vw - 16;
+        const scale = Math.min(1, availableW / 800);
+        wrapper.style.transform = `scale(${scale})`;
+        outer.style.width = '100%';
+        outer.style.justifyContent = 'center';
+        outer.style.height = `${Math.ceil(sheet.offsetHeight * scale)}px`;
+      } else {
+        wrapper.style.transform = 'none';
+        outer.style.width = vw < 832 ? '800px' : '100%';
+        outer.style.justifyContent = vw < 832 ? 'flex-start' : 'center';
+        outer.style.height = 'auto';
+      }
+    }
+
+    // =========================================================================
+    // 8. AI PROMPT GENERATOR & 2X CRISP PNG EXPORT
+    // =========================================================================
+    function generateAiPrompt() {
+      if (!currentBoard) return '';
+      const count = currentBoard.teams.length;
+      const posJp =
+        count === 2 ? ['左半分', '右半分'] :
+        count === 3 ? ['左エリア', '中央エリア', '右エリア'] :
+        ['左から1番目', '左から2番目', '左から3番目', '右端'];
+
+      const zonesJp = currentBoard.teams
+        .map((t, i) => `・${posJp[i]}：チーム「${t.name}」の背景カラー（${t.color.toUpperCase()}）`)
+        .join('\n');
+      const zonesEn = currentBoard.teams
+        .map((t, i) => `Zone ${i + 1} (left-to-right): background lighting in ${t.color.toUpperCase()}`)
+        .join(', ');
+
+      return `【AI画像生成用プロンプト指定】
+社内コンテスト得点表の上部バナー用ビジュアルを作成してください。
+
+■ サイズ・アスペクト比
+・16:9 横長（推奨サイズ：1200×675px）
+
+■ チーム数・背景カラー配置（${count}チーム対抗）
+${zonesJp}
+
+■ 必須条件
+・各チームカラーに合わせた華やかなステージ／バトル演出の背景
+・上下左右に少し余白を持たせ、人物やキャラクターの顔が見切れない構図
+・【重要】画像内に文字・数字・ロゴ・透かしは一切入れないこと
+
+--- English Prompt ---
+Energetic team contest battle banner illustration, ${count}-way rivalry composition, split background lighting from left to right: ${zonesEn}. Dynamic arena spotlight atmosphere, wide 16:9 aspect ratio, generous headroom so faces are not cropped. Strictly NO text, NO numbers, NO logos, NO watermarks. --ar 16:9`;
+    }
+
+    async function exportScoreboardAsPng() {
+      if (!currentBoard) return;
+      const btn = document.getElementById('btn-export-png');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>書き出し中...</span>';
+
+      try {
+        const source = document.getElementById('scoreboard-sheet');
+        const offscreen = document.createElement('div');
+        offscreen.style.position = 'fixed';
+        offscreen.style.left = '-9999px';
+        offscreen.style.top = '0';
+        offscreen.style.width = '800px';
+        offscreen.style.zIndex = '-1';
+
+        const clone = source.cloneNode(true);
+
+        // 1. Strip all editing-only UI elements
+        clone.querySelectorAll('.export-hide').forEach((el) => el.remove());
+
+        // 2. Copy live canvas image bitmap if image mode is active
+        const srcCanvas = source.querySelector('#banner-canvas');
+        const dstCanvas = clone.querySelector('#banner-canvas');
+        if (srcCanvas && dstCanvas && currentBoard.bannerMode === 'image' && uploadedImageObj) {
+          dstCanvas.getContext('2d').drawImage(srcCanvas, 0, 0);
+        }
+
+        // 3. Replace <input>/<textarea> with crisp borderless static text nodes
+        const srcInputs = source.querySelectorAll('input, textarea');
+        const dstInputs = clone.querySelectorAll('input, textarea');
+        dstInputs.forEach((dstEl, idx) => {
+          const srcEl = srcInputs[idx];
+          if (!srcEl || dstEl.type === 'file' || dstEl.type === 'range' || dstEl.type === 'checkbox') {
+            dstEl.remove();
+            return;
+          }
+
+          let val = srcEl.value || '';
+          if (srcEl.type === 'number' && val !== '' && !isNaN(Number(val))) {
+            // Keep zero blank for member points if empty, format with commas otherwise
+            val = Number(val).toLocaleString();
+          }
+
+          if (srcEl.id === 'ed-footer-notes' && val.trim() === '') {
+            dstEl.remove();
+            return;
+          }
+
+          const replacement = document.createElement('div');
+          replacement.className = dstEl.className
+            .replace(/wysiwyg-input/g, '')
+            .replace(/borderless-score-input/g, '');
+          replacement.style.border = 'none';
+          replacement.style.background = 'transparent';
+          if (srcEl.tagName === 'TEXTAREA') {
+            replacement.style.whiteSpace = 'pre-wrap';
+            replacement.style.height = 'auto';
+          } else {
+            replacement.style.display = 'flex';
+            replacement.style.alignItems = 'center';
+            if (getComputedStyle(srcEl).textAlign === 'right') {
+              replacement.style.justifyContent = 'flex-end';
+            }
+          }
+          replacement.textContent = val;
+          dstEl.parentNode.replaceChild(replacement, dstEl);
+        });
+
+        offscreen.appendChild(clone);
+        document.body.appendChild(offscreen);
+
+        await new Promise((r) => setTimeout(r, 140));
+
+        const bgCol = viewMode === 'worksheet' && printInkSave ? '#ffffff' : '#141e30';
+        const canvas = await html2canvas(clone, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: bgCol,
+          logging: false
+        });
+
+        document.body.removeChild(offscreen);
+
+        const safeMonth = (currentBoard.monthLabel || '得点表').replace(/[\\/:*?"<>|]/g, '');
+        const modeTag = viewMode === 'worksheet'
+          ? '手書き記入用紙'
+          : (currentBoard.bannerMode === 'image' && uploadedImageObj ? '画像あり' : '画像なし');
+        const filename = `得点表_${safeMonth}_${modeTag}.png`;
+
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+        showToast(`高精細PNGを書き出しました（${filename}）`);
+      } catch (err) {
+        console.error('Export PNG failed:', err);
+        showToast('書き出しに失敗しました', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+
+    // =========================================================================
+    // 9. SETUP WIZARD & SETTINGS MODAL
+    // =========================================================================
+    function openSetupModal(mode) {
+      setupModalMode = mode;
+      document.getElementById('modal-setup-title').querySelector('span').textContent =
+        mode === 'new' ? '新しい月の得点表を作成' : '得点表の設定を変更';
+
+      if (mode === 'new') {
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        document.getElementById('cfg-year-month').value = ym;
+        document.getElementById('cfg-kicker').value = currentBoard?.kicker || '入間店 冬のインナーコンテスト';
+        document.getElementById('cfg-main-title').value = currentBoard?.mainTitle || 'BUCC 累計得点表';
+        document.getElementById('cfg-subtitle').value = currentBoard?.subtitle || 'ボディアンダーコーティング';
+        setRadio('cfg-goal-scope', 'both');
+        document.getElementById('cfg-use-point-goal').checked = true;
+        document.getElementById('cfg-use-amount-goal').checked = true;
+        document.getElementById('cfg-overall-pts').value = 2000;
+        document.getElementById('cfg-overall-amt').value = 1500000;
+
+        setupDraftTeams = [
+          { id: 't1', name: 'チームA', color: '#b8293d', targetPoints: 1000, targetAmount: 750000, currentAmount: 0, members: [{ id: 'm1', name: 'メンバー1', points: null }] },
+          { id: 't2', name: 'チームB', color: '#1a738b', targetPoints: 1000, targetAmount: 750000, currentAmount: 0, members: [{ id: 'm2', name: 'メンバー1', points: null }] }
+        ];
+      } else if (currentBoard) {
+        document.getElementById('cfg-year-month').value = currentBoard.yearMonth || '2026-11';
+        document.getElementById('cfg-kicker').value = currentBoard.kicker || '';
+        document.getElementById('cfg-main-title').value = currentBoard.mainTitle || '';
+        document.getElementById('cfg-subtitle').value = currentBoard.subtitle || '';
+        setRadio('cfg-goal-scope', currentBoard.goalScope || 'none');
+        document.getElementById('cfg-use-point-goal').checked = !!currentBoard.usePointGoal;
+        document.getElementById('cfg-use-amount-goal').checked = !!currentBoard.useAmountGoal;
+        document.getElementById('cfg-overall-pts').value = currentBoard.overallGoalPoints || 2000;
+        document.getElementById('cfg-overall-amt').value = currentBoard.overallGoalAmount || 1500000;
+
+        setupDraftTeams = JSON.parse(JSON.stringify(currentBoard.teams));
+      }
+
+      syncSetupGoalVisibility();
+      document.getElementById('modal-setup').classList.remove('hidden');
+    }
+
+    function setRadio(name, val) {
+      document.querySelectorAll(`input[name="${name}"]`).forEach((r) => (r.checked = r.value === val));
+    }
+
+    function getRadio(name) {
+      const el = document.querySelector(`input[name="${name}"]:checked`);
+      return el ? el.value : 'none';
+    }
+
+    function syncSetupGoalVisibility() {
+      const scope = getRadio('cfg-goal-scope');
+      const usePts = document.getElementById('cfg-use-point-goal').checked;
+      const useAmt = document.getElementById('cfg-use-amount-goal').checked;
+
+      document.getElementById('cfg-goal-types-box').classList.toggle('hidden', scope === 'none');
+      const showOverall = (scope === 'overall' || scope === 'both') && (usePts || useAmt);
+      document.getElementById('cfg-overall-inputs').classList.toggle('hidden', !showOverall);
+      document.getElementById('cfg-og-pts-field').classList.toggle('hidden', !usePts);
+      document.getElementById('cfg-og-amt-field').classList.toggle('hidden', !useAmt);
+
+      renderSetupTeamsList();
+    }
+
+    function renderSetupTeamsList() {
+      const count = setupDraftTeams.length;
+      document.querySelectorAll('.cfg-team-count-btn').forEach((btn) => {
+        const active = Number(btn.dataset.teamCount) === count;
+        btn.className = `cfg-team-count-btn px-3 py-1 rounded-md text-xs font-bold transition ${
+          active ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+        }`;
+      });
+
+      const scope = getRadio('cfg-goal-scope');
+      const showTeam = scope === 'team' || scope === 'both';
+      const usePts = showTeam && document.getElementById('cfg-use-point-goal').checked;
+      const useAmt = showTeam && document.getElementById('cfg-use-amount-goal').checked;
+
+      const list = document.getElementById('cfg-teams-list');
+      list.innerHTML = '';
+
+      setupDraftTeams.forEach((t, idx) => {
+        const swatchesHtml = COLOR_SWATCHES.map(
+          (hex) => `<button type="button" data-swatch-idx="${idx}" data-swatch-color="${hex}" class="w-4 h-4 rounded-full border ${
+            t.color.toLowerCase() === hex ? 'border-white scale-110' : 'border-slate-700'
+          }" style="background-color: ${hex};"></button>`
+        ).join('');
+
+        const div = document.createElement('div');
+        div.className = 'bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2';
+        div.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-slate-400">チーム ${idx + 1}</span>
+            <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-1">${swatchesHtml}</div>
+              <input type="color" data-cfg-color="${idx}" value="${escapeHtml(t.color)}" class="w-6 h-5 rounded cursor-pointer bg-transparent border-0 ml-1" />
+            </div>
+          </div>
+          <input type="text" data-cfg-name="${idx}" value="${escapeHtml(t.name)}" placeholder="チーム名"
+            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400" />
+          ${usePts || useAmt ? `
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              ${usePts ? `
+                <div>
+                  <label class="block text-[10px] text-amber-300 mb-0.5">目標ポイント</label>
+                  <input type="number" data-cfg-tpts="${idx}" value="${t.targetPoints || 1000}"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-amber-400" />
+                </div>
+              ` : ''}
+              ${useAmt ? `
+                <div>
+                  <label class="block text-[10px] text-emerald-300 mb-0.5">目標金額(円)</label>
+                  <input type="number" data-cfg-tamt="${idx}" value="${t.targetAmount || 750000}"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-400" />
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function applySetupModal() {
+      const ym = document.getElementById('cfg-year-month').value || '2026-11';
+      const monthNum = parseInt(ym.split('-')[1], 10) || 11;
+      const monthLabel = `${monthNum}月`;
+      const kicker = document.getElementById('cfg-kicker').value.trim();
+      const mainTitle = document.getElementById('cfg-main-title').value.trim() || '累計得点表';
+      const subtitle = document.getElementById('cfg-subtitle').value.trim();
+      const goalScope = getRadio('cfg-goal-scope');
+      const usePointGoal = document.getElementById('cfg-use-point-goal').checked;
+      const useAmountGoal = document.getElementById('cfg-use-amount-goal').checked;
+      const overallGoalPoints = Number(document.getElementById('cfg-overall-pts').value) || 0;
+      const overallGoalAmount = Number(document.getElementById('cfg-overall-amt').value) || 0;
+
+      if (setupModalMode === 'new') {
+        const now = new Date();
+        const dateText = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 集計`;
+        const newBoard = {
+          id: 'board_' + Date.now(),
+          yearMonth: ym,
+          monthLabel,
+          kicker,
+          mainTitle,
+          subtitle,
+          dateText,
+          goalScope,
+          usePointGoal,
+          useAmountGoal,
+          overallGoalPoints,
+          overallGoalAmount,
+          autoSumTeamAmount: false,
+          confirmedAmount: 0,
+          footerNotes: '',
+          bannerMode: 'guide',
+          updatedAt: Date.now(),
+          teams: JSON.parse(JSON.stringify(setupDraftTeams))
+        };
+        currentBoard = newBoard;
+        currentBoardId = newBoard.id;
+        boardsMap[newBoard.id] = newBoard;
+        renderBoardSelector();
+        renderSheetFull();
+        saveBoardToFirestore(newBoard);
+      } else if (currentBoard) {
+        currentBoard.yearMonth = ym;
+        currentBoard.monthLabel = monthLabel;
+        currentBoard.kicker = kicker;
+        currentBoard.mainTitle = mainTitle;
+        currentBoard.subtitle = subtitle;
+        currentBoard.goalScope = goalScope;
+        currentBoard.usePointGoal = usePointGoal;
+        currentBoard.useAmountGoal = useAmountGoal;
+        currentBoard.overallGoalPoints = overallGoalPoints;
+        currentBoard.overallGoalAmount = overallGoalAmount;
+        currentBoard.teams = JSON.parse(JSON.stringify(setupDraftTeams));
+        renderBoardSelector();
+        renderSheetFull();
+        saveBoardToFirestore(currentBoard);
+      }
+
+      document.getElementById('modal-setup').classList.add('hidden');
+    }
+
+    // =========================================================================
+    // 10. AUTH MODAL LOGIC
+    // =========================================================================
+    function updateAuthUI() {
+      const label = document.getElementById('account-label');
+      const statusText = document.getElementById('auth-status-text');
+      const uidText = document.getElementById('auth-uid-text');
+      const signoutBox = document.getElementById('auth-signout-container');
+
+      if (!auth) {
+        label.textContent = 'ローカル';
+        statusText.textContent = 'ローカルモード（Firebase未接続）';
+        uidText.textContent = 'GitHub Pages等でクラウド同期を使う場合は、コード内の CUSTOM_FIREBASE_CONFIG を設定してください。';
+        signoutBox.classList.add('hidden');
+        return;
+      }
+
+      if (!currentUser) {
+        label.textContent = '未ログイン';
+        statusText.textContent = 'ログアウト状態';
+        uidText.textContent = '';
+        signoutBox.classList.add('hidden');
+        return;
+      }
+
+      uidText.textContent = `UID: ${currentUser.uid}`;
+      if (currentUser.isAnonymous) {
+        label.textContent = 'ゲスト利用中';
+        statusText.textContent = '匿名アカウント（この端末専用の非公開領域）';
+        signoutBox.classList.add('hidden');
+      } else {
+        label.textContent = currentUser.email || currentUser.displayName || 'ログイン済';
+        statusText.textContent = `ログイン中: ${currentUser.email || currentUser.displayName}`;
+        signoutBox.classList.remove('hidden');
+      }
+    }
+
+    function openAuthModal() {
+      updateAuthUI();
+      document.getElementById('auth-error-msg').classList.add('hidden');
+      document.getElementById('modal-auth').classList.remove('hidden');
+    }
+
+    function showAuthError(msg) {
+      const el = document.getElementById('auth-error-msg');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    // =========================================================================
+    // 11. EVENT BINDINGS
+    // =========================================================================
+    function bindEvents() {
+      // Top Mode Switchers
+      document.getElementById('btn-mode-distribution').addEventListener('click', () => {
+        if (viewMode === 'distribution') return;
+        viewMode = 'distribution';
+        renderSheetFull();
+      });
+
+      document.getElementById('btn-mode-worksheet').addEventListener('click', () => {
+        if (viewMode === 'worksheet') return;
+        viewMode = 'worksheet';
+        renderSheetFull();
+      });
+
+      // Worksheet Mode Toggles
+      document.getElementById('chk-print-show-banner').addEventListener('change', (e) => {
+        printShowBanner = e.target.checked;
+        updateModeUI();
+        if (printShowBanner) renderBannerSection();
+        requestAnimationFrame(updateSheetScale);
+      });
+
+      document.getElementById('chk-print-ink-save').addEventListener('change', (e) => {
+        printInkSave = e.target.checked;
+        renderSheetFull();
+      });
+
+      // Print A4 Button
+      document.getElementById('btn-print-worksheet').addEventListener('click', () => {
+        window.print();
+      });
+
+      // Board Selector & Toolbar Actions
+      document.getElementById('board-selector').addEventListener('change', (e) => {
+        const id = e.target.value;
+        if (id && boardsMap[id]) {
+          currentBoardId = id;
+          currentBoard = JSON.parse(JSON.stringify(boardsMap[id]));
+          renderSheetFull();
+        }
+      });
+
+      document.getElementById('btn-new-board').addEventListener('click', () => openSetupModal('new'));
+      document.getElementById('btn-edit-settings').addEventListener('click', () => openSetupModal('edit'));
+      document.getElementById('btn-manual-save').addEventListener('click', () => saveBoardToFirestore(currentBoard, false));
+      document.getElementById('btn-export-png').addEventListener('click', exportScoreboardAsPng);
+      document.getElementById('btn-account').addEventListener('click', openAuthModal);
+
+      // Mobile Zoom Toggle
+      document.getElementById('btn-toggle-zoom').addEventListener('click', () => {
+        mobileZoomMode = mobileZoomMode === 'fit' ? 'full' : 'fit';
+        const btn = document.getElementById('btn-toggle-zoom');
+        btn.innerHTML = mobileZoomMode === 'full'
+          ? '<i class="fa-solid fa-compress"></i><span>全体</span>'
+          : '<i class="fa-solid fa-magnifying-glass-plus"></i><span>拡大</span>';
+        updateSheetScale();
+      });
+
+      // Delete Board Confirmation
+      document.getElementById('btn-delete-board').addEventListener('click', () => {
+        if (!currentBoard) return;
+        document.getElementById('confirm-title').textContent = '得点表を削除しますか？';
+        document.getElementById('confirm-message').textContent =
+          `「${currentBoard.monthLabel} ${currentBoard.mainTitle}」を削除します。この操作は元に戻せません。`;
+        confirmCallback = deleteCurrentBoard;
+        document.getElementById('modal-confirm').classList.remove('hidden');
+      });
+      document.getElementById('btn-confirm-cancel').addEventListener('click', () => {
+        document.getElementById('modal-confirm').classList.add('hidden');
+      });
+      document.getElementById('btn-confirm-ok').addEventListener('click', () => {
+        document.getElementById('modal-confirm').classList.add('hidden');
+        if (confirmCallback) confirmCallback();
+      });
+
+      // Banner Mode Buttons
+      document.querySelectorAll('.banner-mode-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (!currentBoard) return;
+          currentBoard.bannerMode = btn.dataset.bannerMode;
+          renderBannerSection();
+          scheduleAutoSave();
+          requestAnimationFrame(updateSheetScale);
+        });
+      });
+
+      // Copy AI Prompt
+      document.getElementById('btn-copy-ai-prompt').addEventListener('click', () => {
+        copyTextToClipboard(generateAiPrompt());
+      });
+
+      // Header Direct WYSIWYG Inputs
+      const bindHeaderInput = (id, key, updateBoardSelect = false) => {
+        document.getElementById(id).addEventListener('input', (e) => {
+          if (!currentBoard) return;
+          currentBoard[key] = e.target.value;
+          if (updateBoardSelect) renderBoardSelector();
+          if (key === 'dateText') updateDynamicTotalsAndSummary();
+          scheduleAutoSave();
+        });
+      };
+      bindHeaderInput('ed-kicker', 'kicker');
+      bindHeaderInput('ed-month-display', 'monthLabel', true);
+      bindHeaderInput('ed-main-title', 'mainTitle', true);
+      bindHeaderInput('ed-subtitle', 'subtitle');
+      bindHeaderInput('ed-date-text', 'dateText');
+
+      // One-tap Today Button
+      document.getElementById('btn-set-today').addEventListener('click', () => {
+        if (!currentBoard) return;
+        const now = new Date();
+        const str = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 集計`;
+        currentBoard.dateText = str;
+        document.getElementById('ed-date-text').value = str;
+        updateDynamicTotalsAndSummary();
+        scheduleAutoSave();
+        showToast(`集計日を「${str}」に更新しました`);
+      });
+
+      // Footer Direct WYSIWYG Inputs
+      document.getElementById('ed-overall-amount').addEventListener('input', (e) => {
+        if (!currentBoard) return;
+        currentBoard.confirmedAmount = e.target.value === '' ? 0 : Number(e.target.value);
+        updateDynamicTotalsAndSummary();
+        scheduleAutoSave();
+      });
+
+      document.getElementById('chk-auto-sum-amount').addEventListener('change', (e) => {
+        if (!currentBoard) return;
+        currentBoard.autoSumTeamAmount = e.target.checked;
+        updateDynamicTotalsAndSummary();
+        scheduleAutoSave();
+      });
+
+      document.getElementById('ed-footer-notes').addEventListener('input', (e) => {
+        if (!currentBoard) return;
+        currentBoard.footerNotes = e.target.value;
+        autoResizeTextarea(e.target);
+        scheduleAutoSave();
+        requestAnimationFrame(updateSheetScale);
+      });
+
+      // Banner Image Upload & Pan/Zoom Controls
+      const fileInput = document.getElementById('input-banner-file');
+      const uploadOverlay = document.getElementById('banner-upload-overlay');
+
+      uploadOverlay.addEventListener('click', () => fileInput.click());
+      document.getElementById('btn-trigger-upload').addEventListener('click', () => fileInput.click());
+
+      ['dragover', 'dragleave', 'drop'].forEach((evtName) => {
+        uploadOverlay.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          if (evtName === 'dragover') uploadOverlay.classList.add('bg-slate-800/80');
+          else uploadOverlay.classList.remove('bg-slate-800/80');
+          if (evtName === 'drop' && e.dataTransfer.files?.[0]) {
+            handleBannerFile(e.dataTransfer.files[0]);
+          }
+        });
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files?.[0]) handleBannerFile(e.target.files[0]);
+      });
+
+      ['zoom', 'x', 'y'].forEach((prop) => {
+        document.getElementById(`slider-${prop}`).addEventListener('input', (e) => {
+          imageTransform[prop] = Number(e.target.value);
+          if (prop === 'zoom') document.getElementById('val-zoom').textContent = `${imageTransform.zoom}%`;
+          drawBannerImageToCanvas();
+        });
+      });
+
+      document.getElementById('btn-reset-img').addEventListener('click', () => {
+        imageTransform = { zoom: 100, x: 0, y: 0 };
+        document.getElementById('slider-zoom').value = 100;
+        document.getElementById('slider-x').value = 0;
+        document.getElementById('slider-y').value = 0;
+        document.getElementById('val-zoom').textContent = '100%';
+        drawBannerImageToCanvas();
+      });
+
+      document.getElementById('btn-clear-image').addEventListener('click', () => {
+        uploadedImageObj = null;
+        fileInput.value = '';
+        renderBannerSection();
+        showToast('画像をクリアしました', 'info');
+      });
+
+      // Teams Grid Delegated WYSIWYG Events
+      const teamsGrid = document.getElementById('teams-grid');
+
+      teamsGrid.addEventListener('input', (e) => {
+        const el = e.target;
+        if (!currentBoard) return;
+
+        if (el.dataset.teamName !== undefined) {
+          currentBoard.teams[Number(el.dataset.teamName)].name = el.value;
+          updateDynamicTotalsAndSummary();
+          if (currentBoard.bannerMode === 'guide') renderBannerSection();
+          scheduleAutoSave();
+        } else if (el.dataset.teamAmount !== undefined) {
+          const tIdx = Number(el.dataset.teamAmount);
+          currentBoard.teams[tIdx].currentAmount = e.target.value === '' ? 0 : Number(e.target.value);
+          updateDynamicTotalsAndSummary();
+          scheduleAutoSave();
+        } else if (el.dataset.memberField) {
+          const tIdx = Number(el.dataset.t);
+          const mIdx = Number(el.dataset.m);
+          const member = currentBoard.teams[tIdx]?.members[mIdx];
+          if (!member) return;
+          if (el.dataset.memberField === 'name') {
+            member.name = el.value;
+          } else if (el.dataset.memberField === 'points') {
+            member.points = el.value === '' ? null : Number(el.value);
+            updateDynamicTotalsAndSummary();
+          }
+          scheduleAutoSave();
+        }
+      });
+
+      teamsGrid.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.dataset.delta) {
+          e.preventDefault();
+          const [tIdx, mIdx] = e.target.dataset.delta.split('-').map(Number);
+          applyDailyDelta(tIdx, mIdx);
+        }
+      });
+
+      teamsGrid.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn || !currentBoard) return;
+        const action = btn.dataset.action;
+        const tIdx = Number(btn.dataset.t);
+        const mIdx = Number(btn.dataset.m);
+        const team = currentBoard.teams[tIdx];
+        if (!team) return;
+
+        if (action === 'add-delta') {
+          applyDailyDelta(tIdx, mIdx);
+        } else if (action === 'add-member') {
+          team.members.push({ id: 'm_' + Date.now(), name: '', points: null });
+          renderTeamsGrid();
+          updateDynamicTotalsAndSummary();
+          scheduleAutoSave();
+          requestAnimationFrame(updateSheetScale);
+        } else if (action === 'remove-member') {
+          team.members.splice(mIdx, 1);
+          renderTeamsGrid();
+          updateDynamicTotalsAndSummary();
+          scheduleAutoSave();
+          requestAnimationFrame(updateSheetScale);
+        }
+      });
+
+      // Setup Modal Events
+      document.getElementById('btn-close-setup').addEventListener('click', () => document.getElementById('modal-setup').classList.add('hidden'));
+      document.getElementById('btn-cancel-setup').addEventListener('click', () => document.getElementById('modal-setup').classList.add('hidden'));
+      document.getElementById('btn-save-setup').addEventListener('click', applySetupModal);
+
+      document.querySelectorAll('input[name="cfg-goal-scope"]').forEach((r) => r.addEventListener('change', syncSetupGoalVisibility));
+      document.getElementById('cfg-use-point-goal').addEventListener('change', syncSetupGoalVisibility);
+      document.getElementById('cfg-use-amount-goal').addEventListener('change', syncSetupGoalVisibility);
+
+      document.querySelectorAll('.cfg-team-count-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetCount = Number(btn.dataset.teamCount);
+          while (setupDraftTeams.length < targetCount) {
+            const idx = setupDraftTeams.length;
+            const preset = DEFAULT_TEAM_PRESETS[idx] || { name: `チーム${idx + 1}`, color: COLOR_SWATCHES[idx % COLOR_SWATCHES.length] };
+            setupDraftTeams.push({
+              id: 't_' + Date.now() + '_' + idx,
+              name: preset.name,
+              color: preset.color,
+              targetPoints: 1000,
+              targetAmount: 750000,
+              currentAmount: 0,
+              members: [{ id: 'm_' + Date.now(), name: 'メンバー1', points: null }]
+            });
+          }
+          if (setupDraftTeams.length > targetCount) {
+            setupDraftTeams = setupDraftTeams.slice(0, targetCount);
+          }
+          renderSetupTeamsList();
+        });
+      });
+
+      const cfgTeamsList = document.getElementById('cfg-teams-list');
+      cfgTeamsList.addEventListener('input', (e) => {
+        const el = e.target;
+        if (el.dataset.cfgName !== undefined) setupDraftTeams[Number(el.dataset.cfgName)].name = el.value;
+        else if (el.dataset.cfgColor !== undefined) {
+          setupDraftTeams[Number(el.dataset.cfgColor)].color = el.value;
+          renderSetupTeamsList();
+        } else if (el.dataset.cfgTpts !== undefined) setupDraftTeams[Number(el.dataset.cfgTpts)].targetPoints = Number(el.value) || 0;
+        else if (el.dataset.cfgTamt !== undefined) setupDraftTeams[Number(el.dataset.cfgTamt)].targetAmount = Number(el.value) || 0;
+      });
+      cfgTeamsList.addEventListener('click', (e) => {
+        const sw = e.target.closest('button[data-swatch-color]');
+        if (!sw) return;
+        setupDraftTeams[Number(sw.dataset.swatchIdx)].color = sw.dataset.swatchColor;
+        renderSetupTeamsList();
+      });
+
+      // Auth Modal Events
+      document.getElementById('btn-close-auth').addEventListener('click', () => document.getElementById('modal-auth').classList.add('hidden'));
+      const tabLogin = document.getElementById('tab-auth-login');
+      const tabSignup = document.getElementById('tab-auth-signup');
+      const btnAuthSubmit = document.getElementById('btn-auth-submit');
+
+      tabLogin.addEventListener('click', () => {
+        authModalMode = 'login';
+        tabLogin.className = 'py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white';
+        tabSignup.className = 'py-1.5 rounded-lg text-xs font-bold text-slate-400';
+        btnAuthSubmit.textContent = 'メールアドレスでログイン';
+      });
+      tabSignup.addEventListener('click', () => {
+        authModalMode = 'signup';
+        tabSignup.className = 'py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white';
+        tabLogin.className = 'py-1.5 rounded-lg text-xs font-bold text-slate-400';
+        btnAuthSubmit.textContent = '新規アカウントを作成して開始';
+      });
+
+      btnAuthSubmit.addEventListener('click', async () => {
+        if (!auth) {
+          showAuthError('現在ローカルモードのためFirebase認証は利用できません。');
+          return;
+        }
+        const email = document.getElementById('auth-email').value.trim();
+        const pw = document.getElementById('auth-password').value;
+        if (!email || pw.length < 6) {
+          showAuthError('メールアドレスと6文字以上のパスワードを入力してください。');
+          return;
+        }
+        try {
+          if (authModalMode === 'login') {
+            await signInWithEmailAndPassword(auth, email, pw);
+            showToast('ログインしました');
+          } else {
+            await createUserWithEmailAndPassword(auth, email, pw);
+            showToast('アカウントを作成しました');
+          }
+          document.getElementById('modal-auth').classList.add('hidden');
+        } catch (err) {
+          showAuthError('認証エラー: ' + (err.message || 'メールアドレス・パスワードを確認してください。'));
+        }
+      });
+
+      document.getElementById('btn-google-signin').addEventListener('click', async () => {
+        if (!auth) {
+          showAuthError('現在ローカルモードのためGoogleログインは利用できません。');
+          return;
+        }
+        try {
+          await signInWithPopup(auth, new GoogleAuthProvider());
+          showToast('Googleアカウントでログインしました');
+          document.getElementById('modal-auth').classList.add('hidden');
+        } catch (err) {
+          showAuthError('Googleログインに失敗しました。');
+        }
+      });
+
+      document.getElementById('btn-auth-signout').addEventListener('click', async () => {
+        if (!auth) return;
+        await signOut(auth);
+        showToast('ログアウトしました', 'info');
+      });
+
+      window.addEventListener('resize', () => requestAnimationFrame(updateSheetScale));
+    }
+
+    function applyDailyDelta(tIdx, mIdx) {
+      const input = document.querySelector(`input[data-delta="${tIdx}-${mIdx}"]`);
+      if (!input || !currentBoard || input.value === '') return;
+      const delta = Number(input.value);
+      if (isNaN(delta)) return;
+
+      const member = currentBoard.teams[tIdx]?.members[mIdx];
+      if (!member) return;
+      const current = member.points !== null && member.points !== '' && !isNaN(Number(member.points)) ? Number(member.points) : 0;
+      member.points = current + delta;
+      input.value = '';
+
+      const ptsInput = document.querySelector(`input[data-member-field="points"][data-t="${tIdx}"][data-m="${mIdx}"]`);
+      if (ptsInput) ptsInput.value = member.points;
+      updateDynamicTotalsAndSummary();
+      scheduleAutoSave();
+      showToast(`${member.name || 'メンバー'}に ${delta >= 0 ? '+' : ''}${delta}点 を加算しました`);
+    }
+
+    function handleBannerFile(file) {
+      if (!file.type.startsWith('image/')) {
+        showToast('画像ファイルを選択してください', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          uploadedImageObj = img;
+          imageTransform = { zoom: 100, x: 0, y: 0 };
+          document.getElementById('slider-zoom').value = 100;
+          document.getElementById('slider-x').value = 0;
+          document.getElementById('slider-y').value = 0;
+          document.getElementById('val-zoom').textContent = '100%';
+          if (currentBoard) currentBoard.bannerMode = 'image';
+          renderBannerSection();
+          showToast('バナー画像を挿入しました');
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // =========================================================================
+    // 12. BOOTSTRAP
+    // =========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      bindEvents();
+      initFirebase();
+    });
+  </script>
+</body>
+</html>
